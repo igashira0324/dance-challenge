@@ -19,8 +19,8 @@ export type BuiltinModel = {
 export const DEFAULT_MODEL_ID = 'default';
 
 const PPG_BANZAI_CORRECTION: PoseCorrection = {
-  leftUpperArm:  { z: -1.15 },
-  rightUpperArm: { z:  1.15 },
+  leftUpperArm:  { x: 0.1, z: -1.4 },
+  rightUpperArm: { x: 0.1, z:  1.4 },
 };
 
 export const BUILTIN_MODELS: BuiltinModel[] = [
