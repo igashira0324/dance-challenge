@@ -3,11 +3,12 @@ import { VRM } from '@pixiv/three-vrm';
 import { Pose, Hand } from 'kalidokit';
 import { poseService } from '../services/poseService';
 import { vrmService } from '../services/vrmService';
-import { Camera, Download, RefreshCw, X, Move, RotateCw, Maximize, ChevronDown, User } from 'lucide-react';
+import { Camera, Download, RefreshCw, X, Move, RotateCw, Maximize, ChevronDown, User, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ModelSelector from './ModelSelector';
 import { BUILTIN_MODELS } from '../constants/models';
 import type { BuiltinModel } from '../constants/models';
+import { uploadService } from '../services/uploadService';
 
 interface Props {
   vrm: VRM | null;
@@ -31,6 +32,8 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   const lastTsRef = useRef(0);
   const lastPoseRef = useRef<any>(null);
   const idlePoseAppliedRef = useRef(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
 
   const MIKU_COLOR = '#39C5BB';
 
@@ -201,7 +204,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
         vrm.scene.scale.set(baseScale, baseScale, baseScale);
       }
     };
-  }, [vrm, isCameraReady]);
+  }, [vrm, isCameraReady, selectedModelId, currentModel]);
 
   const isDraggingRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -287,14 +290,26 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     } finally {
       URL.revokeObjectURL(url);
       setIsLoadingModel(false);
-      e.target.value = '';
     }
   };
 
-  // --- Countdown & capture ---
   const startCapture = () => {
     if (countdown !== null) return;
     setCountdown(3);
+  };
+
+  const handleShare = async () => {
+    if (!capturedImage) return;
+    setIsSharing(true);
+    try {
+      const url = await uploadService.uploadImage(capturedImage);
+      setShareUrl(url);
+    } catch (e) {
+      console.error('Share failed', e);
+      alert('アップロードに失敗しました。時間をおいて再度お試しください。');
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   useEffect(() => {
@@ -310,7 +325,6 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     }
   }, [countdown]);
 
-  // --- Canvas text rendering ---
   const drawStylizedText = (ctx: CanvasRenderingContext2D, w: number, h: number, modelId: string) => {
     ctx.save();
     
@@ -444,7 +458,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   const downloadPhoto = () => {
     if (!capturedImage) return;
     const link = document.createElement('a');
-    link.download = `miku-photo-${Date.now()}.png`;
+    link.download = `photo_${Date.now()}.png`;
     link.href = capturedImage;
     link.click();
   };
@@ -579,7 +593,10 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
           ) : (
             <div className="flex gap-6">
               <button 
-                onClick={() => setCapturedImage(null)}
+                onClick={() => {
+                  setCapturedImage(null);
+                  setShareUrl(null);
+                }}
                 className="px-10 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold rounded-3xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl"
               >
                 <RefreshCw size={24} /> RETAKE
@@ -609,7 +626,10 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
             >
               <img src={capturedImage} alt="Captured" className="w-full h-auto rounded-2xl" />
               <button 
-                onClick={() => setCapturedImage(null)}
+                onClick={() => {
+                  setCapturedImage(null);
+                  setShareUrl(null);
+                }}
                 className="absolute -top-6 -right-6 w-16 h-16 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-2xl border-4 border-neutral-900 transition-transform hover:rotate-90 active:scale-90"
               >
                 <X size={32} />
@@ -617,11 +637,28 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
             </motion.div>
             <div className="mt-12 flex gap-8 pointer-events-auto">
               <button 
-                onClick={() => setCapturedImage(null)}
+                onClick={() => {
+                  setCapturedImage(null);
+                  setShareUrl(null);
+                }}
                 className="px-12 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold text-xl rounded-2xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl"
               >
                 <RefreshCw size={24} /> RETAKE
               </button>
+
+              <button
+                onClick={handleShare}
+                disabled={isSharing}
+                className={`px-12 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold text-xl rounded-2xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl ${isSharing ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isSharing ? (
+                  <RefreshCw size={24} className="animate-spin" />
+                ) : (
+                  <Share2 size={24} />
+                )}
+                <span>QR SHARE</span>
+              </button>
+
               <button 
                 onClick={downloadPhoto}
                 className="px-20 py-5 text-white font-black text-2xl rounded-2xl flex items-center gap-4 transition-all shadow-2xl"
@@ -630,6 +667,56 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
                 <Download size={32} /> DOWNLOAD NOW
               </button>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* QR Code Modal */}
+      <AnimatePresence>
+        {shareUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 pointer-events-auto"
+            onClick={() => setShareUrl(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-gray-900 border border-white/10 rounded-3xl p-8 max-w-sm w-full text-center relative"
+              onClick={e => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setShareUrl(null)}
+                className="absolute top-4 right-4 text-white/50 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <h3 className="text-2xl font-bold text-white mb-2">QR Code</h3>
+              <p className="text-white/60 mb-6 text-sm">
+                スマホのカメラで読み取って<br />
+                写真をダウンロードしてください
+              </p>
+
+              <div className="bg-white p-6 rounded-2xl inline-block mb-6 shadow-xl">
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(shareUrl)}`}
+                  alt="QR Code"
+                  className="w-[200px] h-[200px]"
+                />
+              </div>
+
+              <div className="text-white/40 text-xs mt-2 break-all px-4">
+                {shareUrl}
+              </div>
+              
+              <p className="text-white/30 text-[10px] mt-4 uppercase tracking-widest">
+                Expires in 24 hours
+              </p>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
