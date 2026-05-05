@@ -5,31 +5,25 @@ import { poseService } from '../services/poseService';
 import { vrmService } from '../services/vrmService';
 import { Camera, Download, RefreshCw, X, Move, RotateCw, Maximize, ChevronDown, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ModelSelector from './ModelSelector';
+import { BUILTIN_MODELS } from '../constants/models';
+import type { BuiltinModel } from '../constants/models';
 
 interface Props {
   vrm: VRM | null;
+  selectedModelId: string;
   onExit: () => void;
-  onVrmChange: (url: string) => void;
+  onVrmChange: (url: string) => Promise<void>;
 }
 
-const BUILTIN_MODELS = [
-  { id: 'default', label: 'V_Miku (by 602e)', url: '/default.vrm', author: '602e' },
-  { id: 'sn_miku', label: 'sn_式初音ミク (by sn_)', url: '/7002965447371409404.vrm', author: 'sn_' },
-  { id: 'snow_caesar', label: 'Snow Miku (by Caesar)', url: '/139171007668622842.vrm', author: 'Caesar' },
-  { id: 'miku_ppg', label: 'Hatsune Miku (by Ppgrules945)', url: '/9199676059820251883.vrm', author: 'Ppgrules945' },
-  { id: 'sakura_ppg', label: 'Sakura Miku (by Ppgrules945)', url: '/831740847908447423.vrm', author: 'Ppgrules945' },
-  { id: 'snow_ppg', label: 'Snow Miku 2 (by Ppgrules945)', url: '/734209068825969914.vrm', author: 'Ppgrules945' },
-  { id: 'miku_alt', label: 'Hatsune Miku Alt', url: '/3040148004813337719.vrm', author: 'Unknown' },
-];
 
-const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
+const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState('Initializing...');
   const [countdown, setCountdown] = useState<number | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isFlash, setIsFlash] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('default');
   const [showModelPanel, setShowModelPanel] = useState(false);
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const rafRef = useRef<number | null>(null);
@@ -183,18 +177,20 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
     };
   }, [vrm, isCameraReady]);
 
+  const isDraggingRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
 
   // --- Pointer event handlers ---
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    isDraggingRef.current = true;
     setIsDragging(true);
     lastMousePos.current = { x: e.clientX, y: e.clientY };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    e.currentTarget.setPointerCapture(e.pointerId);
   }, []);
 
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!isDragging) return;
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
     
     const dx = e.clientX - lastMousePos.current.x;
     const dy = e.clientY - lastMousePos.current.y;
@@ -213,8 +209,12 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
     }
   }, []);
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    isDraggingRef.current = false;
     setIsDragging(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
   }, []);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -224,15 +224,15 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
   }, []);
 
   // --- Model selection ---
-  const handleSelectBuiltin = async (model: typeof BUILTIN_MODELS[0]) => {
-    setSelectedModel(model.id);
+  const handleSelectBuiltin = async (model: BuiltinModel) => {
     setIsLoadingModel(true);
     setShowModelPanel(false);
     try {
-      onVrmChange(model.url);
+      await onVrmChange(model.url);
+    } catch (e) {
+      console.warn('Model load failed', e);
     } finally {
-      // Loading is handled by parent; just close panel
-      setTimeout(() => setIsLoadingModel(false), 1500);
+      setIsLoadingModel(false);
     }
   };
 
@@ -240,12 +240,17 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const url = URL.createObjectURL(file);
-    setSelectedModel(file.name);
     setIsLoadingModel(true);
     setShowModelPanel(false);
-    onVrmChange(url);
-    setTimeout(() => setIsLoadingModel(false), 1500);
-    e.target.value = '';
+    try {
+      await onVrmChange(url);
+    } catch (e) {
+      console.warn('Custom model load failed', e);
+    } finally {
+      URL.revokeObjectURL(url);
+      setIsLoadingModel(false);
+      e.target.value = '';
+    }
   };
 
   // --- Countdown & capture ---
@@ -374,7 +379,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
       ctx.strokeRect(pad + 2, pad + 2, tempCanvas.width - (pad + 2) * 2, tempCanvas.height - (pad + 2) * 2);
 
       // 4. Stylized text
-      drawStylizedText(ctx, tempCanvas.width, tempCanvas.height, selectedModel);
+      drawStylizedText(ctx, tempCanvas.width, tempCanvas.height, selectedModelId);
 
       setCapturedImage(tempCanvas.toDataURL('image/png'));
     };
@@ -409,7 +414,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
   };
 
   return (
-    <div className="absolute inset-0 overflow-hidden z-[50]">
+    <div className="absolute inset-0 overflow-hidden">
       {/* Background Video */}
       <video 
         ref={videoRef} 
@@ -453,11 +458,11 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
             <p className={`text-[9px] mt-3 font-mono px-2 py-1 rounded bg-black/40 ${status.startsWith('ERROR') ? 'text-rose-400' : 'text-cyan-400'}`}>
               STATUS: {status}
             </p>
-            <div className="flex flex-col gap-1 mt-4 text-[9px] font-mono opacity-80">
-              <div className="flex items-center gap-1"><Move size={10} /> Drag: 位置移動</div>
-              <div className="flex items-center gap-1"><RotateCw size={10} /> Shift+Drag: 横回転</div>
-              <div className="flex items-center gap-1"><RotateCw size={10} /> Ctrl+Drag: 縦回転</div>
-              <div className="flex items-center gap-1"><Maximize size={10} /> Wheel: サイズ</div>
+            <div className="flex flex-col gap-2 mt-4 text-[11px] font-mono opacity-80">
+              <div className="flex items-center gap-2"><Move size={12} /> Drag: ミクを移動</div>
+              <div className="flex items-center gap-2"><RotateCw size={12} /> Shift+Drag: 左右回転</div>
+              <div className="flex items-center gap-2"><RotateCw size={12} /> Ctrl+Drag: 上下回転</div>
+              <div className="flex items-center gap-2"><Maximize size={12} /> Wheel: サイズ変更</div>
             </div>
             
             {/* Model selector */}
@@ -474,23 +479,14 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
                 {showModelPanel && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden mt-2 flex flex-col gap-1"
+                    className="overflow-hidden mt-3"
                   >
-                    {BUILTIN_MODELS.map(m => (
-                      <button
-                        key={m.id}
-                        onClick={() => handleSelectBuiltin(m)}
-                        className={`text-left text-[9px] px-2 py-1.5 rounded-lg transition-all ${selectedModel === m.id ? 'bg-cyan-500/30 text-cyan-200' : 'hover:bg-white/10 text-gray-400'}`}
-                      >
-                        {m.label}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-left text-[9px] px-2 py-1.5 rounded-lg hover:bg-white/10 text-gray-400 transition-all border border-dashed border-white/10"
-                    >
-                      + カスタムVRMをアップロード
-                    </button>
+                    <ModelSelector 
+                      selectedModelId={selectedModelId}
+                      isLoading={isLoadingModel}
+                      onSelect={handleSelectBuiltin}
+                      onUploadClick={() => fileInputRef.current?.click()}
+                    />
                     <input ref={fileInputRef} type="file" accept=".vrm" className="hidden" onChange={handleCustomVRM} />
                   </motion.div>
                 )}
