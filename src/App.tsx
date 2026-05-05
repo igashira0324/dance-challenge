@@ -78,7 +78,9 @@ const App = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     if (canvasRef.current) {
-      startCamera().catch(err => console.warn("Initial camera start failed", err));
+      if (videoRef.current) {
+        poseService.startCamera(videoRef.current);
+      }
       vrmService.init(canvasRef.current);
     }
     vrmService.loadVRM('/default.vrm')
@@ -118,20 +120,16 @@ const App = () => {
 
   return (
     <div className={`relative w-full h-screen bg-neutral-950 overflow-hidden flex flex-col items-center justify-center font-sans ${isShaking ? 'camera-shake' : ''}`}>
-      <video 
-        ref={videoRef} 
-        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] z-0 opacity-60" 
-        muted 
-        playsInline 
-      />
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px] z-[1]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_rgba(120,0,255,0.1),_rgba(0,0,0,0.4)_100%)] pointer-events-none z-[2]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_rgba(120,0,255,0.15),_rgba(0,0,0,1)_80%)] pointer-events-none z-0" />
       
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full z-10" />
 
-      {gameState === 'PLAYING' && (
-        <div className="absolute bottom-6 right-6 px-4 py-2 bg-rose-600/80 backdrop-blur-md rounded-full text-xs font-black text-white flex items-center gap-3 animate-pulse shadow-2xl z-50 border border-white/20">
-          <div className="w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_10px_#fff]" /> LIVE RECORDING
+      {gameState !== 'MOCAP' && (
+        <div className="absolute bottom-6 right-6 w-72 h-48 glass-panel overflow-hidden z-30 group hover:scale-[1.02] transition-transform duration-300">
+          <video ref={videoRef} className="w-full h-full object-cover scale-x-[-1] opacity-70" muted playsInline />
+          <div className="absolute top-3 left-3 bg-rose-500/80 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-bold text-white flex items-center gap-2 animate-pulse shadow-lg">
+            <div className="w-2 h-2 bg-white rounded-full" /> REC
+          </div>
         </div>
       )}
 
