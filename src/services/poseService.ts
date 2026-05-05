@@ -173,6 +173,9 @@ class PoseService {
         if (this.stream === stream) {
           this.stream = null;
         }
+        if (videoElement.srcObject === stream) {
+          videoElement.srcObject = null;
+        }
       }
       console.error("PoseService: Camera start failed", err);
       throw err;
