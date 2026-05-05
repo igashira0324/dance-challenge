@@ -12,16 +12,9 @@ interface Props {
   onVrmChange: (url: string) => void;
 }
 
-// Built-in models available in /public
-const BUILTIN_MODELS = [
-  { id: 'default', label: 'V_Miku (by 602e)', url: '/default.vrm', author: '602e' },
-  { id: 'sn_miku', label: 'sn_式初音ミク (by sn_)', url: '/7002965447371409404.vrm', author: 'sn_' },
-  { id: 'snow_caesar', label: 'Snow Miku (by Caesar)', url: '/139171007668622842.vrm', author: 'Caesar' },
-  { id: 'miku_ppg', label: 'Hatsune Miku (by Ppgrules945)', url: '/9199676059820251883.vrm', author: 'Ppgrules945' },
-  { id: 'sakura_ppg', label: 'Sakura Miku (by Ppgrules945)', url: '/831740847908447423.vrm', author: 'Ppgrules945' },
-  { id: 'snow_ppg', label: 'Snow Miku 2 (by Ppgrules945)', url: '/734209068825969914.vrm', author: 'Ppgrules945' },
-  { id: 'miku_alt', label: 'Hatsune Miku Alt', url: '/3040148004813337719.vrm', author: 'Unknown' },
-];
+// Built-in models are now excluded from the repository. 
+// Please place your VRM files in /public and add them here if you wish to use them as presets.
+const BUILTIN_MODELS: any[] = [];
 
 const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -462,6 +455,28 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
               <div className="flex items-center gap-1"><RotateCw size={10} /> Ctrl+Drag: 縦回転</div>
               <div className="flex items-center gap-1"><Maximize size={10} /> Wheel: サイズ</div>
             </div>
+
+            {/* Capture Button */}
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[110] flex flex-col items-center gap-4">
+          {!vrm && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-rose-500/90 text-white text-xs font-bold px-6 py-2 rounded-full shadow-2xl backdrop-blur-md mb-2 border border-white/20"
+            >
+              ⚠️ PLEASE UPLOAD A VRM MODEL TO START
+            </motion.div>
+          )}
+          <button 
+            onClick={startCapture}
+            disabled={countdown !== null || !vrm}
+            className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-95 transition-all pointer-events-auto disabled:opacity-30 disabled:scale-100 disabled:grayscale"
+          >
+            <div className="w-20 h-20 border-4 border-black/10 rounded-full flex items-center justify-center">
+              <Camera size={40} className="text-black" />
+            </div>
+          </button>
+        </div>
 
             {/* Model selector */}
             <div className="mt-4 border-t border-white/10 pt-4">

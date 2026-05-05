@@ -80,9 +80,8 @@ const App = () => {
     if (canvasRef.current) {
       vrmService.init(canvasRef.current);
     }
-    vrmService.loadVRM('/default.vrm')
-      .then(setVrm)
-      .catch(err => console.warn("Default VRM load failed", err));
+    // Default VRM loading removed to prevent 404s after repository cleanup.
+    // The user must now upload a VRM manually or place default.vrm locally.
 
     return () => {
       audioEngine.stop();
@@ -115,6 +114,10 @@ const App = () => {
   };
 
   const handleStart = async () => {
+    if (!vrm) {
+      alert("先にVRMモデルをアップロードしてください (Please upload a VRM model first)");
+      return;
+    }
     try {
       await startCamera();
       await audioEngine.playDemo();
@@ -186,16 +189,16 @@ const App = () => {
                 </div>
               )}
 
-              <button 
-                onClick={handleStart}
-                disabled={isStartingCamera}
-                className="group relative w-full py-5 bg-white text-black font-black text-xl rounded-2xl overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-rose-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <span className="relative z-10 flex items-center justify-center gap-3 group-hover:text-white transition-colors">
-                  {isStartingCamera ? 'INITIALIZING...' : <>START MISSION <Play size={20} /></>}
-                </span>
-              </button>
+                <button 
+                  onClick={handleStart}
+                  disabled={isStartingCamera || !vrm}
+                  className="group relative w-full py-5 bg-white text-black font-black text-xl rounded-2xl overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-rose-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <span className="relative z-10 flex items-center justify-center gap-3 group-hover:text-white transition-colors">
+                    {!vrm ? 'MODEL REQUIRED' : isStartingCamera ? 'INITIALIZING...' : <>START MISSION <Play size={20} /></>}
+                  </span>
+                </button>
 
               <input type="file" accept=".vrm" ref={fileInputRef} onChange={handleVRMUpload} style={{ display: 'none' }} />
               <button 

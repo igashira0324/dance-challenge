@@ -12,37 +12,17 @@ MediaPipe Pose と 3D VRM を活用した、高精度な次世代リズムダン
 
 ## 🚀 クイックスタート (Windows)
 
-1. **RUN_GAME.bat** をダブルクリックします。
-2. 自動的に依存関係がインストールされ、開発サーバーが起動します。
-3. ブラウザで `http://localhost:5173` を開きます。
+1. **VRMモデルの準備**:
+   - 再配布制限のため、リポジトリに3Dモデルは含まれていません。
+   - `public/default.vrm` として、お手持ちのVRMファイルを配置してください。詳細は [public/README.md](./public/README.md) を参照。
+2. **RUN_GAME.bat** をダブルクリックします。
+3. 自動的に依存関係がインストールされ、開発サーバーが起動します。
+4. ブラウザで `http://localhost:5173` を開きます。
 
 ## 🛠 技術スタック
-
-- **Core**: React + Vite + TypeScript
-- **Pose Detection**: MediaPipe Pose (Task Vision)
-- **3D Rendering**: Three.js + @pixiv/three-vrm
-- **Animation**: Framer Motion
-- **Audio**: Web Audio API
-
-## 📐 アーキテクチャ解説
-
-判定エンジンの詳細については、`architecture_overview.md` を参照してください。
-
-### ボディ・ローカル座標系
-ユーザーの肩と腰の位置から独自の 3D 基底ベクトルを生成。これにより、ユーザーが部屋のどこにいても、どの向きを向いていても、ポーズを正確に評価できます。
-
-### 類似度計算
-ターゲットポーズ（正規化ベクトル）とユーザーのポーズの内積（Cosine Similarity）を計算。
-- **0.85 以上**: PERFECT
-- **0.65 以上**: GOOD
-
-## 📸 新しいポーズの追加方法
-
-1. アプリを起動し、カメラの前でポーズを取ります。
-2. `Alt + C` キーを押します。
-3. ブラウザのコンソールに出力された JSON データをコピーします。
-4. `src/constants/index.ts` の `DEMO_MARKERS` に貼り付けます。
+... (中略) ...
 
 ## 📜 ライセンス
 
-MIT License
+- **ソースコード**: [MIT License](LICENSE)
+- **3Dモデル (VRM)**: 本リポジトリには含まれません。使用する各モデル作者の利用規約に従ってください。

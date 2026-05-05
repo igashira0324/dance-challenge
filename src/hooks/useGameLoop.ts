@@ -41,6 +41,10 @@ export const useGameLoop = ({
 
   const animate = useCallback((time: number) => {
     if (gameState === 'PLAYING') {
+      if (!vrm) {
+        setGameState('IDLE');
+        return;
+      }
       const musicTime = audioEngine.getCurrentTime();
       currentTimeMotion.set(musicTime);
 
