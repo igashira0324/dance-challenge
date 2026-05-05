@@ -420,8 +420,51 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     const ctx = tempCanvas.getContext('2d');
     if (!ctx) return;
 
-    const finalizePhoto = () => {
-      // 3. Corner frame accents
+    const finalizePhoto = async () => {
+      // 3. Purikura-style Decorations
+      const DECORATION_ASSETS_MOJI = [
+        'mohi01.png', 'mohi02.png', 'mohi03.png', 'mohi05.png', 'moji04.png'
+      ];
+      const DECORATION_ASSETS_CHIBI = [
+        'Cute_chibi_Hatsune_Miku_character_icon_design_sup-1777983987911_attr1_subject.png',
+        'One_cute_chibi_Hatsune_Miku_in_V-sign_peace_pose_-1777984102071_attr1_subject.png',
+        'One_cute_chibi_Hatsune_Miku_making_peace_sign_V-po-1777984229056_attr1_subject.png',
+        'One_cute_chibi_Hatsune_Miku_making_peace_sign_V-po-1777984403861_attr1_subject.png',
+        'One_cute_chibi_Hatsune_Miku_sticker_with_curious_q-1777985102937_attr1_subject.png',
+        'Single_adorable_chibi_Hatsune_Miku_character_in_ch-1777984138130_attr1_subject.png',
+        'Single_adorable_chibi_Hatsune_Miku_character_in_ch-1777984269027_attr1_subject.png',
+        'Single_adorable_chibi_Hatsune_Miku_character_in_dy-1777983991177_attr1_subject.png',
+        'Single_chibi-style_Hatsune_Miku_in_excited_jumping-1777983993934_attr1_subject.png',
+        'Single_chibi-style_Hatsune_Miku_sticker_with_sad_c-1777985050315_attr1_subject.png'
+      ];
+
+      const randomMoji = DECORATION_ASSETS_MOJI[Math.floor(Math.random() * DECORATION_ASSETS_MOJI.length)];
+      const randomChibi = DECORATION_ASSETS_CHIBI[Math.floor(Math.random() * DECORATION_ASSETS_CHIBI.length)];
+
+      const loadImg = (src: string) => new Promise<HTMLImageElement>((resolve) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.src = src;
+      });
+
+      try {
+        const [imgMoji, imgChibi] = await Promise.all([
+          loadImg(`/photo/${randomMoji}`),
+          loadImg(`/photo/${randomChibi}`)
+        ]);
+
+        // Draw Moji (Top Left)
+        const mojiSize = tempCanvas.height * 0.3;
+        ctx.drawImage(imgMoji, 20, 20, mojiSize, mojiSize);
+
+        // Draw Chibi (Top Right)
+        const chibiSize = tempCanvas.height * 0.35;
+        ctx.drawImage(imgChibi, tempCanvas.width - chibiSize - 20, 20, chibiSize, chibiSize);
+      } catch (e) {
+        console.warn('Failed to load decorations', e);
+      }
+
+      // 4. Corner frame accents
       const cLen = 60;
       const pad = 12;
       ctx.strokeStyle = MIKU_COLOR;
@@ -435,7 +478,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
       ctx.lineWidth = 1;
       ctx.strokeRect(pad + 2, pad + 2, tempCanvas.width - (pad + 2) * 2, tempCanvas.height - (pad + 2) * 2);
 
-      // 4. Stylized text
+      // 5. Stylized text
       drawStylizedText(ctx, tempCanvas.width, tempCanvas.height, selectedModelId);
 
       setCapturedImage(tempCanvas.toDataURL('image/png'));
@@ -709,25 +752,25 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
                 画像は一時保存され、一定時間後に自動削除されます。
               </p>
 
-              <div className="p-1 rounded-[2.5rem] inline-block mb-6 shadow-2xl relative overflow-hidden bg-gradient-to-br from-[#39C5BB] via-white to-[#FF007F]">
-                <div className="bg-white p-5 rounded-[2.3rem] relative z-10">
+              <div className="p-1.5 rounded-[2.8rem] inline-block mb-6 shadow-2xl relative overflow-hidden bg-gradient-to-br from-[#39C5BB] via-[#FF007F] to-[#00A39C]">
+                <div className="bg-[#FF007F] p-6 rounded-[2.5rem] relative z-10">
                   <QRCodeCanvas
                     value={shareUrl}
                     size={260}
                     level="H"
-                    bgColor="#ffffff"
-                    fgColor="#000000"
+                    bgColor="#FF007F"
+                    fgColor="#FFFFFF"
                     imageSettings={{
                       src: '/Chibi-style_Hatsune_Miku_adorable_icon_illustratio-1777978579165.png',
-                      width: 52,
-                      height: 52,
+                      width: 60,
+                      height: 60,
                       excavate: true,
                     }}
                   />
 
                   {/* Decorative scanning line effect */}
-                  <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[2.3rem]">
-                    <div className="w-full h-1 bg-[#00FCFF]/40 absolute top-0 animate-[scan_3s_linear_infinite]" />
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[2.5rem]">
+                    <div className="w-full h-1.5 bg-white/60 absolute top-0 animate-[scan_3s_linear_infinite]" />
                   </div>
                 </div>
               </div>
