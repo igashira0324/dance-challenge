@@ -35,6 +35,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef(0);
+  const lastPoseRef = useRef<any>(null);
 
   const MIKU_COLOR = '#39C5BB';
 
@@ -130,12 +131,22 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
 
           // Pose
           const poseResult = (Pose as any).solve(worldLandmarks, landmarks, { runtime: 'mediapipe', video: v });
-          if (poseResult) vrmService.applyPose(vrm, poseResult, 0.5);
+          if (poseResult) {
+            lastPoseRef.current = poseResult;
+            vrmService.applyPose(vrm, poseResult, 0.5);
+          } else if (lastPoseRef.current) {
+            // Smoothly hold the last pose
+            vrmService.applyPose(vrm, lastPoseRef.current, 0.05);
+          }
         }
       } else {
-        // Fallback to T-pose if nobody is in frame
+        // Fallback to last known pose or T-pose if nobody is in frame
         if (vrm && vrm.humanoid) {
-          vrm.humanoid.resetNormalizedPose();
+          if (lastPoseRef.current) {
+            vrmService.applyPose(vrm, lastPoseRef.current, 0.02);
+          } else {
+            vrm.humanoid.resetNormalizedPose();
+          }
         }
       }
 
@@ -259,67 +270,63 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
 
   // --- Canvas text rendering ---
   const drawStylizedText = (ctx: CanvasRenderingContext2D, w: number, h: number, modelId: string) => {
-    const text = '初音ミク ♫';
-    const x = 60;
-    const y = h - 60;
     ctx.save();
-
-    // Layer 1: Glow
-    ctx.font = 'bold 56px "Outfit", "Noto Sans JP", Arial';
+    
+    const fontScale = w / 1280;
+    
+    // Main Title: "HATSUNE MIKU ♫"
+    const x = 60 * fontScale;
+    const y = 120 * fontScale;
+    
+    ctx.font = `black ${90 * fontScale}px "Outfit", sans-serif`;
+    ctx.letterSpacing = "2px";
+    
+    // Glow layers
+    ctx.shadowBlur = 30 * fontScale;
     ctx.shadowColor = MIKU_COLOR;
-    ctx.shadowBlur = 30;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
     ctx.fillStyle = MIKU_COLOR;
-    ctx.fillText(text, x, y);
-    ctx.fillText(text, x, y);
+    ctx.fillText('初音ミク♫', x, y);
+    
+    ctx.shadowBlur = 15 * fontScale;
+    ctx.shadowColor = 'white';
+    ctx.fillText('初音ミク♫', x, y);
+    
+    // Gradient and Outline
+    const grad = ctx.createLinearGradient(x, y - 60 * fontScale, x, y);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(1, MIKU_COLOR);
+    
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 4 * fontScale;
+    ctx.strokeText('初音ミク♫', x, y);
+    ctx.fillText('初音ミク♫', x, y);
 
-    // Layer 2: Black outline
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
-    ctx.lineJoin = 'round';
-    ctx.strokeText(text, x, y);
-
-    // Layer 3: White inner outline
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.strokeText(text, x, y);
-
-    // Layer 4: Gradient fill
-    const gradient = ctx.createLinearGradient(x, y - 50, x, y + 5);
-    gradient.addColorStop(0, '#ffffff');
-    gradient.addColorStop(0.4, MIKU_COLOR);
-    gradient.addColorStop(1, '#2EAAA0');
-    ctx.fillStyle = gradient;
-    ctx.fillText(text, x, y);
-
-    // Note decorations
-    ctx.font = 'bold 24px "Outfit", Arial';
+    // Subtle music notes
+    ctx.font = `${40 * fontScale}px "Outfit", sans-serif`;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
     ctx.shadowColor = MIKU_COLOR;
-    ctx.shadowBlur = 15;
-    ctx.fillText('♪', x + 280, y - 30);
-    ctx.fillText('♫', x + 310, y - 50);
+    ctx.shadowBlur = 15 * fontScale;
+    ctx.fillText('♪', x + 280 * fontScale, y - 30 * fontScale);
+    ctx.fillText('♫', x + 310 * fontScale, y - 50 * fontScale);
 
     // Bottom-right: Event name + date
     const now = new Date();
     const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
     const eventName = 'なんでも生成AI展示会 Vol.5';
 
-    ctx.font = 'bold 24px "Noto Sans JP", sans-serif';
+    ctx.font = `bold ${24 * fontScale}px "Noto Sans JP", sans-serif`;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
     ctx.shadowColor = MIKU_COLOR;
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 10 * fontScale;
     ctx.textAlign = 'right';
-    ctx.fillText(eventName, w - 40, h - 70);
+    ctx.fillText(eventName, w - 40 * fontScale, h - 70 * fontScale);
 
-    ctx.font = 'bold 20px "Outfit", monospace';
+    ctx.font = `bold ${20 * fontScale}px "Outfit", monospace`;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
-    ctx.shadowBlur = 8;
-    ctx.fillText(dateStr, w - 40, h - 40);
+    ctx.shadowBlur = 8 * fontScale;
+    ctx.fillText(dateStr, w - 40 * fontScale, h - 40 * fontScale);
 
     // Bottom-left: Credits
     const selectedBuiltin = BUILTIN_MODELS.find(m => m.id === modelId);
@@ -334,11 +341,11 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
 
     if (creditText) {
       ctx.textAlign = 'left';
-      ctx.font = 'bold 16px "Outfit", "Noto Sans JP", sans-serif';
+      ctx.font = `bold ${16 * fontScale}px "Outfit", "Noto Sans JP", sans-serif`;
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
       ctx.shadowColor = 'rgba(0,0,0,0.8)';
-      ctx.shadowBlur = 4;
-      ctx.fillText(creditText, 30, h - 30);
+      ctx.shadowBlur = 4 * fontScale;
+      ctx.fillText(creditText, 30 * fontScale, h - 30 * fontScale);
     }
 
     ctx.restore();
@@ -416,7 +423,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
 
       {/* Transparent interaction layer — above 3D canvas, captures pointer/wheel */}
       <div
-        className="absolute inset-0 z-[60]"
+        className={`absolute inset-0 z-[60] ${countdown !== null ? 'pointer-events-none' : ''}`}
         style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}

@@ -4,7 +4,6 @@ import { audioEngine } from '../services/audioEngine';
 import { vrmService } from '../services/vrmService';
 import { poseService } from '../services/poseService';
 import { checkPoseMatch } from '../utils/poseUtils';
-import { Face } from 'kalidokit';
 import type { MarkerTarget } from '../types/game';
 import { VRM } from '@pixiv/three-vrm';
 
@@ -60,14 +59,8 @@ export const useGameLoop = ({
         // --- 2b. 顔検出 (表情: まばたき等) ---
         if (vrm) {
           const faceResult = poseService.detectFace(videoRef.current, time);
-          if (faceResult && faceResult.faceLandmarks?.[0]) {
-            const solvedFace = (Face as any).solve(faceResult.faceLandmarks[0], {
-              runtime: 'mediapipe',
-              video: videoRef.current
-            });
-            if (solvedFace) {
-              vrmService.applyFace(vrm, solvedFace);
-            }
+          if (faceResult?.faceBlendshapes?.[0]?.categories) {
+            vrmService.applyFaceFromBlendshapes(vrm, faceResult.faceBlendshapes[0].categories);
           }
         }
       }

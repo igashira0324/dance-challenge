@@ -237,28 +237,6 @@ class VRMService {
     if (pose.Spine) rigRotation('spine', pose.Spine);
   }
 
-  applyFace(vrm: VRM, face: any) {
-    if (!vrm || !vrm.expressionManager || !face) return;
-    const s = (name: string, val: number | undefined) => {
-      if (val === undefined || val === null || isNaN(val)) return;
-      vrm.expressionManager?.setValue(name, Math.max(0, Math.min(1, val)));
-    };
-    if (face.eye) {
-      const blinkThreshold = 0.87;
-      const blinkScale = 1.0 / (1.0 - blinkThreshold);
-      const adjustBlink = (val: number) => Math.max(0, (val - blinkThreshold) * blinkScale);
-      s('blinkLeft', adjustBlink(face.eye.l ?? 0));
-      s('blinkRight', adjustBlink(face.eye.r ?? 0));
-    }
-    if (face.mouth?.shape) {
-      s('aa', face.mouth.shape.A);
-      s('ih', face.mouth.shape.I);
-      s('ou', face.mouth.shape.U);
-      s('ee', face.mouth.shape.E);
-      s('oh', face.mouth.shape.O);
-    }
-  }
-
   private faceState: Record<string, number> = {};
 
   applyFaceFromBlendshapes(vrm: VRM, blendshapes: Array<{ categoryName: string; score: number }>) {
@@ -279,11 +257,24 @@ class VRMService {
     sLerp('blinkLeft',  adjust(map['eyeBlinkLeft']  ?? 0));
     sLerp('blinkRight', adjust(map['eyeBlinkRight'] ?? 0));
 
-    sLerp('aa', (map['jawOpen']      ?? 0) * 1.2);
-    sLerp('ih', (map['mouthSmileLeft'] ?? 0) * 0.7 + (map['mouthSmileRight'] ?? 0) * 0.7);
-    sLerp('ou', (map['mouthFunnel']  ?? 0) * 1.5);
-    sLerp('ee', (map['mouthStretchLeft'] ?? 0) * 0.5 + (map['mouthStretchRight'] ?? 0) * 0.5);
-    sLerp('oh', (map['mouthPucker']  ?? 0) * 1.3);
+    // Improved vowel mapping for natural expressions
+    const jawOpen = map['jawOpen'] ?? 0;
+    const smileL = map['mouthSmileLeft'] ?? 0;
+    const smileR = map['mouthSmileRight'] ?? 0;
+    const funnel = map['mouthFunnel'] ?? 0;
+    const pucker = map['mouthPucker'] ?? 0;
+    const stretchL = map['mouthStretchLeft'] ?? 0;
+    const stretchR = map['mouthStretchRight'] ?? 0;
+
+    sLerp('aa', jawOpen * 1.2);
+    sLerp('ih', jawOpen * 0.3 + smileL + smileR);
+    sLerp('ou', funnel + pucker * 0.5);
+    sLerp('ee', smileL + smileR - jawOpen * 0.3 + (stretchL + stretchR) * 0.2);
+    sLerp('oh', funnel * 0.5 + jawOpen * 0.7);
+
+    // Optional: look direction (commented out as per review suggestion to potentially enable later)
+    // sLerp('lookUp',   map['eyeLookUpLeft']   ?? 0);
+    // sLerp('lookDown', map['eyeLookDownLeft'] ?? 0);
   }
 
   applyEulerPose(target: VRM | THREE.Group, pose: EulerPose, lerpAmount = 1.0) {
