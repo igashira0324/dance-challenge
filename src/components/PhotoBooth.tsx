@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { VRM } from '@pixiv/three-vrm';
-import { Pose, Face, Hand } from 'kalidokit';
+import { Pose, Hand } from 'kalidokit';
 import { poseService } from '../services/poseService';
 import { vrmService } from '../services/vrmService';
 import { Camera, Download, RefreshCw, X, Move, RotateCw, Maximize, ChevronDown, User } from 'lucide-react';
@@ -48,47 +48,74 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
     scale: 1.0
   });
 
-  const isDragging = useRef(false);
-  const lastMousePos = useRef({ x: 0, y: 0 });
+  // removed duplicate isDragging and lastMousePos refs
 
-  // --- Pose detection loop ---
+  const [isCameraReady, setIsCameraReady] = useState(false);
+
+  // --- Camera Init Effect (Runs Once) ---
   useEffect(() => {
     let alive = true;
-    
     (async () => {
       try {
-        setStatus('Loading models...');
+        setStatus('Initializing Camera...');
         await poseService.init();
-        setStatus('Starting camera...');
         if (!videoRef.current) return;
         await poseService.startCamera(videoRef.current);
-        setStatus('Ready');
+        if (alive) {
+          setIsCameraReady(true);
+          setStatus('Ready');
+        }
       } catch (e: any) {
-        setStatus('ERROR: ' + (e?.message || e));
-        return;
+        if (alive) setStatus('ERROR: ' + (e?.message || e));
       }
+    })();
+    return () => {
+      alive = false;
+      if (videoRef.current) poseService.stopCamera(videoRef.current);
+    };
+  }, []);
 
-      const loop = (t: number) => {
-        if (!alive) return;
-        rafRef.current = requestAnimationFrame(loop);
+  // --- Render Loop Effect (Restarts on VRM change) ---
+  useEffect(() => {
+    let alive = true;
+    if (!isCameraReady) return;
 
-        const v = videoRef.current;
-        if (!v || v.readyState < 2) return;
+    // Capture base scale for relative scaling
+    const baseScale = vrm ? vrm.scene.scale.x : 1.0;
+    
+    // FPS Throttling for Face/Hands
+    let lastFaceFrame = 0;
+    let lastHandFrame = 0;
+    const FACE_INTERVAL = 1000 / 15; // 15 FPS
+    const HAND_INTERVAL = 1000 / 20; // 20 FPS
 
-        const result = poseService.detect(v, t);
-        if (result && result.landmarks?.[0] && result.worldLandmarks?.[0]) {
-          const landmarks = result.landmarks[0];
-          const worldLandmarks = result.worldLandmarks[0];
+    const loop = (t: number) => {
+      if (!alive) return;
+      rafRef.current = requestAnimationFrame(loop);
 
-          if (vrm) {
-            // Face
+      const v = videoRef.current;
+      if (!v || v.readyState < 2) return;
+
+      const result = poseService.detect(v, t);
+      if (result && result.landmarks?.[0] && result.worldLandmarks?.[0]) {
+        const landmarks = result.landmarks[0];
+        const worldLandmarks = result.worldLandmarks[0];
+
+        if (vrm) {
+          const now = performance.now();
+          
+          // Face (Throttled)
+          if (now - lastFaceFrame > FACE_INTERVAL) {
+            lastFaceFrame = now;
             const faceResult = poseService.detectFace(v, t);
-            if (faceResult && faceResult.faceLandmarks?.[0]) {
-              const solvedFace = (Face as any).solve(faceResult.faceLandmarks[0], { runtime: 'mediapipe', video: v });
-              if (solvedFace) vrmService.applyFace(vrm, solvedFace);
+            if (faceResult?.faceBlendshapes?.[0]?.categories) {
+              vrmService.applyFaceFromBlendshapes(vrm, faceResult.faceBlendshapes[0].categories);
             }
+          }
 
-            // Hands
+          // Hands (Throttled)
+          if (now - lastHandFrame > HAND_INTERVAL) {
+            lastHandFrame = now;
             const handResult = poseService.detectHands(v, t);
             if (handResult && handResult.landmarks) {
               const hands: { left: any, right: any } = { left: null, right: null };
@@ -99,63 +126,65 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
               });
               vrmService.applyHands(vrm, hands);
             }
-
-            // Pose
-            const poseResult = (Pose as any).solve(worldLandmarks, landmarks, { runtime: 'mediapipe', video: v });
-            if (poseResult) vrmService.applyPose(vrm, poseResult, 0.5);
           }
-        } else {
-          // Fallback to T-pose if nobody is in frame
-          if (vrm && vrm.humanoid) {
-            vrm.humanoid.resetNormalizedPose();
-          }
+
+          // Pose
+          const poseResult = (Pose as any).solve(worldLandmarks, landmarks, { runtime: 'mediapipe', video: v });
+          if (poseResult) vrmService.applyPose(vrm, poseResult, 0.5);
         }
-
-        // Always apply transform and render
-        if (vrm) {
-          const tf = transformRef.current;
-          
-          // VRM 0.0 models face +Z, VRM 1.0 models face -Z.
-          // Adjust base rotation so they always face the camera.
-          const isVrm0 = vrm.meta?.metaVersion === '0';
-          const baseRotY = isVrm0 ? Math.PI : 0;
-
-          vrm.scene.position.set(tf.x, tf.y, tf.z);
-          vrm.scene.rotation.x = tf.rotX;
-          vrm.scene.rotation.y = baseRotY + tf.rotY;
-          vrm.scene.scale.set(tf.scale, tf.scale, tf.scale);
-
-          const now = performance.now();
-          const dt = lastTsRef.current ? (now - lastTsRef.current) / 1000 : 0.016;
-          lastTsRef.current = now;
-          vrmService.update(vrm, dt);
+      } else {
+        // Fallback to T-pose if nobody is in frame
+        if (vrm && vrm.humanoid) {
+          vrm.humanoid.resetNormalizedPose();
         }
-      };
-      rafRef.current = requestAnimationFrame(loop);
-    })();
+      }
+
+      // Always apply transform and render
+      if (vrm) {
+        const tf = transformRef.current;
+        
+        // VRM 0.0 models face +Z, VRM 1.0 models face -Z.
+        // Adjust base rotation so they always face the camera.
+        const isVrm0 = vrm.meta?.metaVersion === '0';
+        const baseRotY = isVrm0 ? Math.PI : 0;
+
+        vrm.scene.position.set(tf.x, tf.y, tf.z);
+        vrm.scene.rotation.x = tf.rotX;
+        vrm.scene.rotation.y = baseRotY + tf.rotY;
+        vrm.scene.scale.setScalar(baseScale * tf.scale);
+
+        const now = performance.now();
+        const dt = lastTsRef.current ? (now - lastTsRef.current) / 1000 : 0.016;
+        lastTsRef.current = now;
+        vrmService.update(vrm, dt);
+      }
+    };
+    rafRef.current = requestAnimationFrame(loop);
 
     return () => {
       alive = false;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      if (videoRef.current) poseService.stopCamera(videoRef.current);
       if (vrm) {
         const isVrm0 = vrm.meta?.metaVersion === '0';
         vrm.scene.position.set(0, 0, 0);
         vrm.scene.rotation.set(0, isVrm0 ? Math.PI : 0, 0);
-        vrm.scene.scale.set(1, 1, 1);
+        vrm.scene.scale.set(baseScale, baseScale, baseScale);
       }
     };
-  }, [vrm]);
+  }, [vrm, isCameraReady]);
+
+  const [isDragging, setIsDragging] = useState(false);
+  const lastMousePos = useRef({ x: 0, y: 0 });
 
   // --- Pointer event handlers ---
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    isDragging.current = true;
+    setIsDragging(true);
     lastMousePos.current = { x: e.clientX, y: e.clientY };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!isDragging.current) return;
+    if (!isDragging) return;
     
     const dx = e.clientX - lastMousePos.current.x;
     const dy = e.clientY - lastMousePos.current.y;
@@ -175,7 +204,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
   }, []);
 
   const handlePointerUp = useCallback(() => {
-    isDragging.current = false;
+    setIsDragging(false);
   }, []);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -325,6 +354,27 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
     const ctx = tempCanvas.getContext('2d');
     if (!ctx) return;
 
+    const finalizePhoto = () => {
+      // 3. Corner frame accents
+      const cLen = 60;
+      const pad = 12;
+      ctx.strokeStyle = MIKU_COLOR;
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(pad, pad + cLen); ctx.lineTo(pad, pad); ctx.lineTo(pad + cLen, pad); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(tempCanvas.width - pad - cLen, pad); ctx.lineTo(tempCanvas.width - pad, pad); ctx.lineTo(tempCanvas.width - pad, pad + cLen); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(pad, tempCanvas.height - pad - cLen); ctx.lineTo(pad, tempCanvas.height - pad); ctx.lineTo(pad + cLen, tempCanvas.height - pad); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(tempCanvas.width - pad - cLen, tempCanvas.height - pad); ctx.lineTo(tempCanvas.width - pad, tempCanvas.height - pad); ctx.lineTo(tempCanvas.width - pad, tempCanvas.height - pad - cLen); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(pad + 2, pad + 2, tempCanvas.width - (pad + 2) * 2, tempCanvas.height - (pad + 2) * 2);
+
+      // 4. Stylized text
+      drawStylizedText(ctx, tempCanvas.width, tempCanvas.height, selectedModel);
+
+      setCapturedImage(tempCanvas.toDataURL('image/png'));
+    };
+
     // 1. Camera background (mirrored)
     ctx.save();
     ctx.scale(-1, 1);
@@ -332,30 +382,18 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
     ctx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
     ctx.restore();
 
-    // 2. VRM canvas
-    const vrmCanvas = document.querySelector('canvas') as HTMLCanvasElement;
-    if (vrmCanvas) {
-      ctx.drawImage(vrmCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
+    // 2. VRM canvas via vrmService
+    const vrmDataUrl = vrmService.takeScreenshot();
+    if (vrmDataUrl) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, tempCanvas.width, tempCanvas.height);
+        finalizePhoto();
+      };
+      img.src = vrmDataUrl;
+    } else {
+      finalizePhoto();
     }
-
-    // 3. Corner frame accents
-    const cLen = 60;
-    const pad = 12;
-    ctx.strokeStyle = MIKU_COLOR;
-    ctx.lineWidth = 6;
-    ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(pad, pad + cLen); ctx.lineTo(pad, pad); ctx.lineTo(pad + cLen, pad); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(tempCanvas.width - pad - cLen, pad); ctx.lineTo(tempCanvas.width - pad, pad); ctx.lineTo(tempCanvas.width - pad, pad + cLen); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(pad, tempCanvas.height - pad - cLen); ctx.lineTo(pad, tempCanvas.height - pad); ctx.lineTo(pad + cLen, tempCanvas.height - pad); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(tempCanvas.width - pad - cLen, tempCanvas.height - pad); ctx.lineTo(tempCanvas.width - pad, tempCanvas.height - pad); ctx.lineTo(tempCanvas.width - pad, tempCanvas.height - pad - cLen); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(pad + 2, pad + 2, tempCanvas.width - (pad + 2) * 2, tempCanvas.height - (pad + 2) * 2);
-
-    // 4. Stylized text
-    drawStylizedText(ctx, tempCanvas.width, tempCanvas.height, selectedModel);
-
-    setCapturedImage(tempCanvas.toDataURL('image/png'));
   };
 
   const downloadPhoto = () => {
@@ -379,7 +417,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
       {/* Transparent interaction layer — above 3D canvas, captures pointer/wheel */}
       <div
         className="absolute inset-0 z-[60]"
-        style={{ cursor: isDragging.current ? 'grabbing' : 'grab' }}
+        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -474,8 +512,8 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
           <motion.div 
             initial={{ scale: 0.5, opacity: 0 }}
             animate={{ scale: 1.5, opacity: 1 }}
-            className="text-[240px] font-black text-white self-center select-none"
-            style={{ textShadow: `0 0 40px ${MIKU_COLOR}, 0 0 80px rgba(0,0,0,0.5)` }}
+            className="text-[240px] font-black text-white self-center select-none bg-black/30 backdrop-blur-sm rounded-[3rem] px-16 py-8"
+            style={{ textShadow: `0 0 40px ${MIKU_COLOR}, 0 0 80px rgba(0,0,0,0.8), 0 0 10px rgba(255,255,255,0.5)` }}
           >
             {countdown === 0 ? 'SHOT!' : countdown}
           </motion.div>
@@ -533,6 +571,12 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
               </button>
             </motion.div>
             <div className="mt-12 flex gap-8 pointer-events-auto">
+              <button 
+                onClick={() => setCapturedImage(null)}
+                className="px-12 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold text-xl rounded-2xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl"
+              >
+                <RefreshCw size={24} /> RETAKE
+              </button>
               <button 
                 onClick={downloadPhoto}
                 className="px-20 py-5 text-white font-black text-2xl rounded-2xl flex items-center gap-4 transition-all shadow-2xl"

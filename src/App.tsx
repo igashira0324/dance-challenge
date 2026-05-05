@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, Play } from 'lucide-react';
 
 import { vrmService } from './services/vrmService';
-import { poseService } from './services/poseService';
 import { audioEngine } from './services/audioEngine';
 import { DEMO_LYRICS } from './constants';
 
@@ -79,9 +78,6 @@ const App = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     if (canvasRef.current) {
-      if (videoRef.current) {
-        poseService.startCamera(videoRef.current);
-      }
       vrmService.init(canvasRef.current);
     }
     vrmService.loadVRM('/default.vrm')

@@ -239,25 +239,17 @@ class VRMService {
 
   applyFace(vrm: VRM, face: any) {
     if (!vrm || !vrm.expressionManager || !face) return;
-
     const s = (name: string, val: number | undefined) => {
       if (val === undefined || val === null || isNaN(val)) return;
       vrm.expressionManager?.setValue(name, Math.max(0, Math.min(1, val)));
     };
-
-    // Blink - Kalidokit face.eye.l/r ranges from 0 (open) to 1 (closed).
-    // Raised threshold to 0.87 so the avatar only blinks when eyes are almost
-    // fully shut. Below this value the expression is forced to 0 (fully open).
     if (face.eye) {
       const blinkThreshold = 0.87;
-      const blinkScale = 1.0 / (1.0 - blinkThreshold); // ≈ 7.7
+      const blinkScale = 1.0 / (1.0 - blinkThreshold);
       const adjustBlink = (val: number) => Math.max(0, (val - blinkThreshold) * blinkScale);
-
       s('blinkLeft', adjustBlink(face.eye.l ?? 0));
       s('blinkRight', adjustBlink(face.eye.r ?? 0));
     }
-    
-    // Mouth
     if (face.mouth?.shape) {
       s('aa', face.mouth.shape.A);
       s('ih', face.mouth.shape.I);
@@ -267,10 +259,33 @@ class VRMService {
     }
   }
 
-  /**
-   * Apply an Euler-angle based pose to a VRM model or a cloned silhouette group.
-   * For silhouettes, we use direct quaternion.copy() instead of slerp for instant application.
-   */
+  private faceState: Record<string, number> = {};
+
+  applyFaceFromBlendshapes(vrm: VRM, blendshapes: Array<{ categoryName: string; score: number }>) {
+    if (!vrm || !vrm.expressionManager || !blendshapes) return;
+
+    const map: Record<string, number> = {};
+    for (const b of blendshapes) map[b.categoryName] = b.score;
+
+    const sLerp = (name: string, target: number, k = 0.4) => {
+      if (isNaN(target)) return;
+      const prev = this.faceState[name] ?? 0;
+      const cur = prev + (target - prev) * k;
+      this.faceState[name] = cur;
+      vrm.expressionManager?.setValue(name, cur);
+    };
+
+    const adjust = (v: number) => Math.max(0, Math.min(1, (v - 0.35) * 1.6));
+    sLerp('blinkLeft',  adjust(map['eyeBlinkLeft']  ?? 0));
+    sLerp('blinkRight', adjust(map['eyeBlinkRight'] ?? 0));
+
+    sLerp('aa', (map['jawOpen']      ?? 0) * 1.2);
+    sLerp('ih', (map['mouthSmileLeft'] ?? 0) * 0.7 + (map['mouthSmileRight'] ?? 0) * 0.7);
+    sLerp('ou', (map['mouthFunnel']  ?? 0) * 1.5);
+    sLerp('ee', (map['mouthStretchLeft'] ?? 0) * 0.5 + (map['mouthStretchRight'] ?? 0) * 0.5);
+    sLerp('oh', (map['mouthPucker']  ?? 0) * 1.3);
+  }
+
   applyEulerPose(target: VRM | THREE.Group, pose: EulerPose, lerpAmount = 1.0) {
     const isVrm = (target as any).humanoid !== undefined;
     const bones = target === this.silhouetteL ? this.silhouetteLBones :

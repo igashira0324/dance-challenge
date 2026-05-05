@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { VRM } from '@pixiv/three-vrm';
-import { Pose, Face, Hand } from 'kalidokit';
+import { Pose, Hand } from 'kalidokit';
 import { poseService } from '../services/poseService';
 import { vrmService } from '../services/vrmService';
 
@@ -94,8 +94,9 @@ const MocapTest = ({ vrm, onExit }: Props) => {
                 const lm = faceResult.faceLandmarks[0][i];
                 ctx.beginPath(); ctx.arc(lm.x * canvas.width, lm.y * canvas.height, 1, 0, Math.PI * 2); ctx.fill();
               }
-              const solvedFace = (Face as any).solve(faceResult.faceLandmarks[0], { runtime: 'mediapipe', video: v });
-              if (solvedFace && vrm) vrmService.applyFace(vrm, solvedFace);
+              if (faceResult.faceBlendshapes?.[0]?.categories && vrm) {
+                vrmService.applyFaceFromBlendshapes(vrm, faceResult.faceBlendshapes[0].categories);
+              }
             }
 
             // Hands (Yellow/Pink)
