@@ -136,7 +136,7 @@ const App = () => {
     <div className={`relative w-full h-screen bg-neutral-950 overflow-hidden flex flex-col items-center justify-center font-sans ${isShaking ? 'camera-shake' : ''}`}>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_rgba(120,0,255,0.15),_rgba(0,0,0,1)_80%)] pointer-events-none z-0" />
       
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full z-10" />
+      <canvas ref={canvasRef} className={`absolute inset-0 w-full h-full ${gameState === 'PHOTO_BOOTH' ? 'z-[55]' : 'z-10'}`} />
 
       {gameState !== 'MOCAP' && gameState !== 'PHOTO_BOOTH' && (
         <div className="absolute bottom-6 right-6 w-72 h-48 glass-panel overflow-hidden z-30 group hover:scale-[1.02] transition-transform duration-300">
