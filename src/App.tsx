@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { VRM } from '@pixiv/three-vrm';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Play } from 'lucide-react';
+import { Play } from 'lucide-react';
 
 import { vrmService } from './services/vrmService';
 import { audioEngine } from './services/audioEngine';
@@ -80,8 +80,16 @@ const App = () => {
     if (canvasRef.current) {
       vrmService.init(canvasRef.current);
     }
-    // Default VRM loading removed to prevent 404s after repository cleanup.
-    // The user must now upload a VRM manually or place default.vrm locally.
+    
+    // Auto-load default VRM
+    (async () => {
+      try {
+        const initialVrm = await vrmService.loadVRM('/default.vrm');
+        setVrm(initialVrm);
+      } catch (e) {
+        console.warn('Default VRM not found or failed to load', e);
+      }
+    })();
 
     return () => {
       audioEngine.stop();
@@ -186,15 +194,6 @@ const App = () => {
                 </div>
               )}
               
-              {!vrm && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-rose-400 text-xs font-bold mb-1 flex items-center justify-center gap-2 bg-rose-950/20 py-2 rounded-xl border border-rose-500/10"
-                >
-                  <span className="animate-pulse">👉 まずは下の "CUSTOM VRM" からモデルを読み込んでください</span>
-                </motion.div>
-              )}
 
                 <button 
                   onClick={handleStart}
@@ -203,17 +202,11 @@ const App = () => {
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-rose-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   <span className="relative z-10 flex items-center justify-center gap-3 group-hover:text-white transition-colors">
-                    {!vrm ? 'MODEL REQUIRED' : isStartingCamera ? 'INITIALIZING...' : <>START MISSION <Play size={20} /></>}
+                    {isStartingCamera ? 'INITIALIZING...' : <>START MISSION <Play size={20} /></>}
                   </span>
                 </button>
 
               <input type="file" accept=".vrm" ref={fileInputRef} onChange={handleVRMUpload} style={{ display: 'none' }} />
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full py-4 bg-transparent hover:bg-white/5 text-gray-300 font-bold rounded-2xl border border-white/10 transition-all text-sm tracking-widest flex items-center justify-center gap-2"
-              >
-                <Upload size={16} /> CUSTOM VRM
-              </button>
 
               <button
                 onClick={() => setGameState('MOCAP')}

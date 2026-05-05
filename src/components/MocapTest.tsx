@@ -3,8 +3,6 @@ import { VRM } from '@pixiv/three-vrm';
 import { Pose, Hand } from 'kalidokit';
 import { poseService } from '../services/poseService';
 import { vrmService } from '../services/vrmService';
-import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle } from 'lucide-react';
 
 interface Props {
   vrm: VRM | null;
@@ -180,28 +178,6 @@ const MocapTest = ({ vrm, onExit }: Props) => {
           <span className="text-cyan-300 font-bold">SIDE-BY-SIDE:</span> 左下の骨格オーバーレイと、中央のアバターの動きを比較してください。
         </p>
       </div>
-
-      <AnimatePresence>
-        {!vrm && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 z-[100] bg-black/80 backdrop-blur-lg flex flex-col items-center justify-center p-12 text-center pointer-events-auto"
-          >
-            <AlertCircle size={80} className="text-rose-500 mb-6 animate-pulse" />
-            <h3 className="text-4xl font-black text-white mb-4 tracking-tighter">VRM MODEL REQUIRED</h3>
-            <p className="text-gray-400 max-w-md mx-auto leading-relaxed">
-              MOCAPテストを実行するにはモデルの読み込みが必要です。<br />
-              一度「EXIT TEST」で戻り、TOP画面でモデルをアップロードしてください。
-            </p>
-            <button
-              onClick={onExit}
-              className="mt-10 px-12 py-4 bg-white text-black font-black rounded-full hover:scale-105 active:scale-95 transition-all shadow-[0_0_30px_rgba(255,255,255,0.3)]"
-            >
-              BACK TO HOME
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

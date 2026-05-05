@@ -3,7 +3,7 @@ import { VRM } from '@pixiv/three-vrm';
 import { Pose, Hand } from 'kalidokit';
 import { poseService } from '../services/poseService';
 import { vrmService } from '../services/vrmService';
-import { Camera, Download, RefreshCw, X, Move, RotateCw, Maximize, Upload, User } from 'lucide-react';
+import { Camera, Download, RefreshCw, X, Move, RotateCw, Maximize, ChevronDown, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Props {
@@ -12,8 +12,15 @@ interface Props {
   onVrmChange: (url: string) => void;
 }
 
-// Built-in models are now excluded from the repository. 
-// Please upload your own VRM files via the UI or place them in /public.
+const BUILTIN_MODELS = [
+  { id: 'default', label: 'V_Miku (by 602e)', url: '/default.vrm', author: '602e' },
+  { id: 'sn_miku', label: 'sn_式初音ミク (by sn_)', url: '/7002965447371409404.vrm', author: 'sn_' },
+  { id: 'snow_caesar', label: 'Snow Miku (by Caesar)', url: '/139171007668622842.vrm', author: 'Caesar' },
+  { id: 'miku_ppg', label: 'Hatsune Miku (by Ppgrules945)', url: '/9199676059820251883.vrm', author: 'Ppgrules945' },
+  { id: 'sakura_ppg', label: 'Sakura Miku (by Ppgrules945)', url: '/831740847908447423.vrm', author: 'Ppgrules945' },
+  { id: 'snow_ppg', label: 'Snow Miku 2 (by Ppgrules945)', url: '/734209068825969914.vrm', author: 'Ppgrules945' },
+  { id: 'miku_alt', label: 'Hatsune Miku Alt', url: '/3040148004813337719.vrm', author: 'Unknown' },
+];
 
 const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -22,7 +29,8 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isFlash, setIsFlash] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState('default');
+  const [showModelPanel, setShowModelPanel] = useState(false);
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef(0);
@@ -216,12 +224,25 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
   }, []);
 
   // --- Model selection ---
+  const handleSelectBuiltin = async (model: typeof BUILTIN_MODELS[0]) => {
+    setSelectedModel(model.id);
+    setIsLoadingModel(true);
+    setShowModelPanel(false);
+    try {
+      onVrmChange(model.url);
+    } finally {
+      // Loading is handled by parent; just close panel
+      setTimeout(() => setIsLoadingModel(false), 1500);
+    }
+  };
+
   const handleCustomVRM = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const url = URL.createObjectURL(file);
     setSelectedModel(file.name);
     setIsLoadingModel(true);
+    setShowModelPanel(false);
     onVrmChange(url);
     setTimeout(() => setIsLoadingModel(false), 1500);
     e.target.value = '';
@@ -247,7 +268,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
   }, [countdown]);
 
   // --- Canvas text rendering ---
-  const drawStylizedText = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+  const drawStylizedText = (ctx: CanvasRenderingContext2D, w: number, h: number, modelId: string) => {
     ctx.save();
     
     const fontScale = w / 1280;
@@ -307,7 +328,15 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
     ctx.fillText(dateStr, w - 40 * fontScale, h - 40 * fontScale);
 
     // Bottom-left: Credits
-    let creditText = 'Model: Custom VRM';
+    const selectedBuiltin = BUILTIN_MODELS.find(m => m.id === modelId);
+    let creditText = '';
+    if (selectedBuiltin) {
+      if (selectedBuiltin.author !== 'Unknown') {
+        creditText = `Model Author: ${selectedBuiltin.author}`;
+      }
+    } else {
+      creditText = `Model: Custom VRM`;
+    }
 
     ctx.textAlign = 'left';
     ctx.font = `bold ${16 * fontScale}px "Outfit", "Noto Sans JP", sans-serif`;
@@ -345,7 +374,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
       ctx.strokeRect(pad + 2, pad + 2, tempCanvas.width - (pad + 2) * 2, tempCanvas.height - (pad + 2) * 2);
 
       // 4. Stylized text
-      drawStylizedText(ctx, tempCanvas.width, tempCanvas.height);
+      drawStylizedText(ctx, tempCanvas.width, tempCanvas.height, selectedModel);
 
       setCapturedImage(tempCanvas.toDataURL('image/png'));
     };
@@ -424,30 +453,51 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
             <p className={`text-[9px] mt-3 font-mono px-2 py-1 rounded bg-black/40 ${status.startsWith('ERROR') ? 'text-rose-400' : 'text-cyan-400'}`}>
               STATUS: {status}
             </p>
-            {selectedModel && (
-              <p className="text-[9px] mt-1 font-mono px-2 py-1 rounded bg-white/5 text-gray-300 flex items-center gap-2 max-w-[180px] truncate" title={selectedModel}>
-                <User size={10} className="text-cyan-400" /> LOADED: {selectedModel.replace(/\.vrm$/i, '')}
-              </p>
-            )}
             <div className="flex flex-col gap-1 mt-4 text-[9px] font-mono opacity-80">
               <div className="flex items-center gap-1"><Move size={10} /> Drag: 位置移動</div>
               <div className="flex items-center gap-1"><RotateCw size={10} /> Shift+Drag: 横回転</div>
               <div className="flex items-center gap-1"><RotateCw size={10} /> Ctrl+Drag: 縦回転</div>
               <div className="flex items-center gap-1"><Maximize size={10} /> Wheel: サイズ</div>
             </div>
-
-            {/* Model selector - Simplified */}
-            <div className="mt-4 border-t border-white/10 pt-4 flex flex-col gap-2">
+            
+            {/* Model selector */}
+            <div className="mt-4 border-t border-white/10 pt-4">
               <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 text-cyan-300 font-bold rounded-xl border border-dashed border-cyan-300/30 transition-all text-[10px] tracking-widest uppercase"
+                onClick={() => setShowModelPanel(p => !p)}
+                className="w-full flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-widest text-cyan-300 hover:text-white transition-colors"
               >
-                <Upload size={12} /> VRMモデルをアップロード
+                <span className="flex items-center gap-1"><User size={10} /> モデル選択</span>
+                <ChevronDown size={10} className={`transition-transform ${showModelPanel ? 'rotate-180' : ''}`} />
               </button>
-              <input ref={fileInputRef} type="file" accept=".vrm" className="hidden" onChange={handleCustomVRM} />
+
+              <AnimatePresence>
+                {showModelPanel && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden mt-2 flex flex-col gap-1"
+                  >
+                    {BUILTIN_MODELS.map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => handleSelectBuiltin(m)}
+                        className={`text-left text-[9px] px-2 py-1.5 rounded-lg transition-all ${selectedModel === m.id ? 'bg-cyan-500/30 text-cyan-200' : 'hover:bg-white/10 text-gray-400'}`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-left text-[9px] px-2 py-1.5 rounded-lg hover:bg-white/10 text-gray-400 transition-all border border-dashed border-white/10"
+                    >
+                      + カスタムVRMをアップロード
+                    </button>
+                    <input ref={fileInputRef} type="file" accept=".vrm" className="hidden" onChange={handleCustomVRM} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {isLoadingModel && (
-                <p className="text-[9px] text-cyan-400 animate-pulse mt-1 text-center">Loading model...</p>
+                <p className="text-[9px] text-cyan-400 animate-pulse mt-2">Loading model...</p>
               )}
             </div>
           </div>
@@ -476,27 +526,16 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
         {/* Bottom buttons */}
         <div className="flex flex-col items-center justify-center pointer-events-auto pb-12 gap-6">
           {!capturedImage ? (
-            <>
-              {!vrm && (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-rose-500/90 text-white text-sm font-black px-8 py-3 rounded-2xl shadow-2xl backdrop-blur-xl border border-white/20 animate-bounce"
-                >
-                  ⚠️ VRMモデルをアップロードしてください
-                </motion.div>
-              )}
-              <button 
-                onClick={startCapture}
-                disabled={countdown !== null || !vrm}
-                className="group relative px-16 py-8 bg-white text-black font-black text-3xl rounded-full overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_0_60px_rgba(57,197,187,0.4)] disabled:opacity-30 disabled:grayscale disabled:scale-100"
-              >
-                <div className="absolute inset-0 transition-opacity opacity-0 group-hover:opacity-100" style={{ background: `linear-gradient(45deg, ${MIKU_COLOR}, #ffffff)` }} />
-                <span className="relative z-10 flex items-center gap-4 group-hover:text-cyan-900">
-                  <Camera size={40} /> TAKE PHOTO
-                </span>
-              </button>
-            </>
+            <button 
+              onClick={startCapture}
+              disabled={countdown !== null}
+              className="group relative px-16 py-8 bg-white text-black font-black text-3xl rounded-full overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_0_60px_rgba(57,197,187,0.4)] disabled:opacity-30 disabled:grayscale disabled:scale-100"
+            >
+              <div className="absolute inset-0 transition-opacity opacity-0 group-hover:opacity-100" style={{ background: `linear-gradient(45deg, ${MIKU_COLOR}, #ffffff)` }} />
+              <span className="relative z-10 flex items-center gap-4 group-hover:text-cyan-900">
+                <Camera size={40} /> TAKE PHOTO
+              </span>
+            </button>
           ) : (
             <div className="flex gap-6">
               <button 
