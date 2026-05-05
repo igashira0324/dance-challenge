@@ -701,12 +701,27 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
                 写真をダウンロードしてください
               </p>
 
-              <div className="bg-white p-6 rounded-2xl inline-block mb-6 shadow-xl">
+              <div className="bg-white p-6 rounded-3xl inline-block mb-6 shadow-2xl relative group">
+                {/* QR Code with High Precision (H) */}
                 <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(shareUrl)}`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&ecc=H&margin=0&data=${encodeURIComponent(shareUrl)}`}
                   alt="QR Code"
-                  className="w-[200px] h-[200px]"
+                  className="w-[220px] h-[220px] block"
                 />
+                
+                {/* Center Icon Overlay (Miku) */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white rounded-xl p-1 shadow-lg border border-gray-100 overflow-hidden">
+                  <img 
+                    src="/Chibi-style_Hatsune_Miku_adorable_icon_illustratio-1777978579165.png"
+                    alt="Miku Icon"
+                    className="w-full h-full object-contain rounded-lg"
+                  />
+                </div>
+
+                {/* Decorative scanning line effect */}
+                <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-3xl">
+                  <div className="w-full h-1 bg-cyan-400/30 absolute top-0 animate-[scan_3s_linear_infinite]" />
+                </div>
               </div>
 
               <div className="text-white/40 text-xs mt-2 break-all px-4">
