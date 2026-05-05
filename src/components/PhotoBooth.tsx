@@ -13,7 +13,7 @@ interface Props {
   vrm: VRM | null;
   selectedModelId: string;
   onExit: () => void;
-  onVrmChange: (modelId: string, url: string) => Promise<void>;
+  onVrmChange: (model: BuiltinModel) => Promise<void>;
 }
 
 
@@ -139,7 +139,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
           if (lastPoseRef.current) {
             vrmService.applyPose(vrm, lastPoseRef.current, 0.02);
           } else {
-            vrm.humanoid.resetNormalizedPose();
+            vrmService.resetToCorrectedPose(vrm);
           }
         }
       }
@@ -230,7 +230,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     setModelError(null);
     setShowModelPanel(false);
     try {
-      await onVrmChange(model.id, model.url);
+      await onVrmChange(model);
     } catch (e) {
       console.warn('Model load failed', e);
       setModelError('モデルの読み込みに失敗しました');
@@ -242,12 +242,20 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   const handleCustomVRM = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     const url = URL.createObjectURL(file);
+    const customModel: BuiltinModel = {
+      id: file.name,
+      label: file.name,
+      url,
+      author: 'Custom',
+    };
+
     setIsLoadingModel(true);
     setModelError(null);
     setShowModelPanel(false);
     try {
-      await onVrmChange(file.name, url);
+      await onVrmChange(customModel);
     } catch (e) {
       console.warn('Custom model load failed', e);
       setModelError('モデルの読み込みに失敗しました');
@@ -340,10 +348,8 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     // Bottom-left: Credits
     const selectedBuiltin = BUILTIN_MODELS.find(m => m.id === modelId);
     let creditText = '';
-    if (selectedBuiltin) {
-      if (selectedBuiltin.author !== 'Unknown') {
-        creditText = `Model Author: ${selectedBuiltin.author}`;
-      }
+    if (selectedBuiltin && selectedBuiltin.author && selectedBuiltin.author !== 'Unknown') {
+      creditText = `Model Author: ${selectedBuiltin.author}`;
     } else {
       creditText = `Model: Custom VRM`;
     }

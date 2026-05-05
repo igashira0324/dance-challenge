@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { VRMLoaderPlugin, VRM } from '@pixiv/three-vrm';
+import { VRMLoaderPlugin, VRM, VRMHumanBoneName } from '@pixiv/three-vrm';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { MarkerTarget, PoseFeatures } from '../types/game';
 import type { EulerPose } from '../constants/poses';
+import type { PoseCorrection } from '../constants/models';
 
 class VRMService {
   private loader: GLTFLoader;
@@ -24,6 +25,7 @@ class VRMService {
 
   private currentLoadId = 0;
   private _eulerPoseDebugDone = false;
+  private currentPoseCorrection: PoseCorrection = {};
 
   constructor() {
     this.loader = new GLTFLoader();
@@ -104,9 +106,11 @@ class VRMService {
     });
   }
 
-  async loadVRM(url: string): Promise<VRM> {
+  async loadVRM(url: string, options: { poseCorrection?: PoseCorrection } = {}): Promise<VRM> {
     const loadId = ++this.currentLoadId;
     this.clearCurrentFromScene();
+
+    this.currentPoseCorrection = options.poseCorrection ?? {};
 
     console.log(`Starting load VRM (ID: ${loadId}): ${url}`);
     
@@ -120,6 +124,9 @@ class VRMService {
     const isVrm0 = vrm.meta?.metaVersion === '0';
     vrm.scene.rotation.y = isVrm0 ? Math.PI : 0;
     vrm.scene.visible = true;
+
+    // Apply rest pose correction if any
+    this.applyRestPoseCorrection(vrm, 1.0);
 
     // ボーン名のマッピングを保存
     this.humanoidBoneNameMap.clear();
@@ -197,6 +204,30 @@ class VRMService {
     });
   }
 
+  private applyRestPoseCorrection(vrm: VRM, lerpAmount = 1.0) {
+    if (!vrm?.humanoid || !this.currentPoseCorrection) return;
+
+    for (const [boneName, rot] of Object.entries(this.currentPoseCorrection)) {
+      const bone = vrm.humanoid.getNormalizedBoneNode(boneName as any);
+      if (!bone || !rot) continue;
+
+      const correctionEuler = new THREE.Euler(
+        (rot.x ?? 0),
+        (rot.y ?? 0),
+        (rot.z ?? 0)
+      );
+
+      const correctionQuat = new THREE.Quaternion().setFromEuler(correctionEuler);
+      bone.quaternion.slerp(correctionQuat, lerpAmount);
+    }
+  }
+
+  resetToCorrectedPose(vrm: VRM) {
+    if (!vrm?.humanoid) return;
+    vrm.humanoid.resetNormalizedPose();
+    this.applyRestPoseCorrection(vrm, 1.0);
+  }
+
   applyPose(vrm: VRM, pose: any, lerpAmountParam = 0.3) {
     if (!pose || !vrm) return;
     
@@ -216,6 +247,16 @@ class VRMService {
         rotation.z * dampener
       );
       const quaternion = new THREE.Quaternion().setFromEuler(euler);
+
+      // Apply correction if exists
+      const correction = this.currentPoseCorrection[name as VRMHumanBoneName];
+      if (correction) {
+        const correctionQuat = new THREE.Quaternion().setFromEuler(
+          new THREE.Euler(correction.x ?? 0, correction.y ?? 0, correction.z ?? 0)
+        );
+        quaternion.premultiply(correctionQuat);
+      }
+
       part.quaternion.slerp(quaternion, lerpAmount);
     };
 

@@ -1,11 +1,27 @@
+import type { VRMHumanBoneName } from '@pixiv/three-vrm';
+
+export type BoneEuler = {
+  x?: number;
+  y?: number;
+  z?: number;
+};
+
+export type PoseCorrection = Partial<Record<VRMHumanBoneName, BoneEuler>>;
+
 export type BuiltinModel = {
   id: string;
   label: string;
   url: string;
   author?: string;
+  poseCorrection?: PoseCorrection;
 };
 
 export const DEFAULT_MODEL_ID = 'default';
+
+const PPG_BANZAI_CORRECTION: PoseCorrection = {
+  leftUpperArm:  { z: -1.15 },
+  rightUpperArm: { z:  1.15 },
+};
 
 export const BUILTIN_MODELS: BuiltinModel[] = [
   {
@@ -19,6 +35,7 @@ export const BUILTIN_MODELS: BuiltinModel[] = [
     label: 'sn_式初音ミク (by sn_)',
     url: '/7002965447371409404.vrm',
     author: 'sn_',
+    poseCorrection: PPG_BANZAI_CORRECTION,
   },
   {
     id: 'snow_caesar',
@@ -30,19 +47,22 @@ export const BUILTIN_MODELS: BuiltinModel[] = [
     id: 'miku_ppg',
     label: 'Hatsune Miku (by Ppgrules945)',
     url: '/9199676059820251883.vrm',
-    author: 'Ppgrules945'
+    author: 'Ppgrules945',
+    poseCorrection: PPG_BANZAI_CORRECTION,
   },
   {
     id: 'sakura_ppg',
     label: 'Sakura Miku (by Ppgrules945)',
     url: '/831740847908447423.vrm',
-    author: 'Ppgrules945'
+    author: 'Ppgrules945',
+    poseCorrection: PPG_BANZAI_CORRECTION,
   },
   {
     id: 'snow_ppg',
     label: 'Snow Miku 2 (by Ppgrules945)',
     url: '/734209068825969914.vrm',
-    author: 'Ppgrules945'
+    author: 'Ppgrules945',
+    poseCorrection: PPG_BANZAI_CORRECTION,
   },
   {
     id: 'miku_alt',

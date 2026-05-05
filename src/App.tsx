@@ -27,6 +27,7 @@ const App = () => {
   const [vrm, setVrm] = useState<VRM | null>(null);
   const [selectedModelId, setSelectedModelId] = useState(DEFAULT_MODEL_ID);
   const [isModelLoading, setIsModelLoading] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
   const [isShaking, setIsShaking] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const didInitialLoadRef = useRef(false);
@@ -84,12 +85,16 @@ const App = () => {
   // --- Handlers ---
   const handleLoadModel = useCallback(async (model: BuiltinModel) => {
     setIsModelLoading(true);
+    setModelError(null);
     try {
-      const newVrm = await vrmService.loadVRM(model.url);
+      const newVrm = await vrmService.loadVRM(model.url, {
+        poseCorrection: model.poseCorrection,
+      });
       setVrm(newVrm);
       setSelectedModelId(model.id);
     } catch (e) {
       console.warn('VRM load failed', e);
+      setModelError('モデルの読み込みに失敗しました');
     } finally {
       setIsModelLoading(false);
     }
@@ -117,11 +122,13 @@ const App = () => {
   }, [handleLoadModel, stopCamera]);
 
 
-  const handleVrmChange = async (modelId: string, url: string) => {
+  const handleVrmChange = async (model: BuiltinModel) => {
     try {
-      const newVrm = await vrmService.loadVRM(url);
+      const newVrm = await vrmService.loadVRM(model.url, {
+        poseCorrection: model.poseCorrection,
+      });
       setVrm(newVrm);
-      setSelectedModelId(modelId);
+      setSelectedModelId(model.id);
     } catch (e) {
       console.warn('VRM load failed', e);
       throw e;
@@ -194,6 +201,9 @@ const App = () => {
             </p>
 
             <div className="flex flex-col gap-4 mt-8">
+              {modelError && (
+                <p className="text-xs text-rose-400 mb-2 animate-pulse">⚠️ {modelError}</p>
+              )}
               {cameraError && (
                 <div className="text-rose-200 bg-rose-950/50 border border-rose-500/30 rounded-xl px-4 py-3 text-sm text-left backdrop-blur-md">
                   <p className="font-bold mb-1 flex items-center gap-2">⚠️ <span className="text-rose-400">Camera Error</span></p>
