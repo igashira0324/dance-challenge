@@ -1,5 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { execSync } from 'child_process'
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
 
 function externalUploadPlugin() {
   const handler = (req: any, res: any, next: any) => {
@@ -30,72 +34,56 @@ function externalUploadPlugin() {
           }
 
           const buffer = Buffer.from(match[1], 'base64')
-          const blob = new Blob([buffer], { type: 'image/png' })
-
           const filename = `miku_photo_${Date.now()}.png`
+          const tmpPath = path.join(os.tmpdir(), filename)
+          fs.writeFileSync(tmpPath, buffer)
 
-          // 1. Try file.io
+          // 1. Try file.io using curl to respect system proxies
           try {
-            const formData = new FormData()
-            formData.append('file', blob, filename)
-
-            const response = await fetch('https://file.io/?expires=1d', {
-              method: 'POST',
-              body: formData,
-            })
-
-            const text = await response.text()
-
-            if (response.ok) {
-              const result = JSON.parse(text)
-              if (result.success && result.link) {
-                res.setHeader('Content-Type', 'application/json')
-                res.end(JSON.stringify({
-                  url: result.link,
-                  provider: 'file.io',
-                }))
-                return
-              }
+            console.log(`[externalUploadPlugin] Try file.io using curl...`);
+            const stdout = execSync(
+              `curl -s -F "file=@${tmpPath}" "https://file.io/?expires=1d"`,
+              { encoding: 'utf-8', timeout: 30000 }
+            )
+            const result = JSON.parse(stdout)
+            
+            if (result.success && result.link) {
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ url: result.link, provider: 'file.io' }))
+              fs.unlinkSync(tmpPath)
+              return
             }
-
-            console.warn('file.io failed:', response.status, text)
-          } catch (e) {
-            console.warn('file.io error:', e)
+            console.warn('file.io failed:', stdout)
+          } catch (e: any) {
+            console.warn('file.io error:', e?.message || e)
           }
 
-          // 2. Fallback to uguu.se
+          // 2. Fallback to uguu.se using curl
           try {
-            const formData = new FormData()
-            formData.append('files[]', blob, filename)
+            console.log(`[externalUploadPlugin] Try uguu.se using curl...`);
+            const stdout = execSync(
+              `curl -s -F "files[]=@${tmpPath}" "https://uguu.se/upload"`,
+              { encoding: 'utf-8', timeout: 30000 }
+            )
+            const result = JSON.parse(stdout)
 
-            const response = await fetch('https://uguu.se/upload', {
-              method: 'POST',
-              body: formData,
-            })
-
-            const text = await response.text()
-
-            if (response.ok) {
-              const result = JSON.parse(text)
-              if (result.success && result.files?.[0]?.url) {
-                res.setHeader('Content-Type', 'application/json')
-                res.end(JSON.stringify({
-                  url: result.files[0].url,
-                  provider: 'uguu.se',
-                }))
-                return
-              }
+            if (result.success && result.files?.[0]?.url) {
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ url: result.files[0].url, provider: 'uguu.se' }))
+              fs.unlinkSync(tmpPath)
+              return
             }
-
-            console.warn('uguu.se failed:', response.status, text)
-          } catch (e) {
-            console.warn('uguu.se error:', e)
+            console.warn('uguu.se failed:', stdout)
+          } catch (e: any) {
+            console.warn('uguu.se error:', e?.message || e)
           }
+
+          if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath)
 
           res.statusCode = 502
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify({
-            error: 'All external upload providers failed',
+            error: 'All external upload providers failed (Is the proxy still blocking?)',
           }))
         } catch (e) {
           res.statusCode = 500
