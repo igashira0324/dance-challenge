@@ -1,7 +1,5 @@
 @echo off
 echo Starting AI Dance Challenge...
-cd /d "%~dp0"
-call npm install
-start http://localhost:5173
-call npm run dev
+cd /d %~dp0
+npm run dev
 pause

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Dance Challenge Engine Documentation</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        :root {
+            --primary: #d946ef;
+            --secondary: #06b6d4;
+            --bg: #0a0a0a;
+            --panel: rgba(255, 255, 255, 0.05);
+        }
+        body {
+            background-color: var(--bg);
+            color: #e5e7eb;
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1, h2 {
+            color: white;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 10px;
+            margin-top: 40px;
+        }
+        .card {
+            background: var(--panel);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        code {
+            background: rgba(0,0,0,0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--secondary);
+        }
+        .mermaid {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .anim-box {
+            width: 100px;
+            height: 100px;
+            background: var(--primary);
+            margin: 20px auto;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(217, 70, 239, 0.7); }
+            70% { transform: scale(1.1); opacity: 0.8; box-shadow: 0 0 0 20px rgba(217, 70, 239, 0); }
+            100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(217, 70, 239, 0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dance Challenge エンジン解説</h1>
+        
+        <div class="card">
+            <h2>1. 新世代ベクトル判定システム</h2>
+            <p>
+                従来のオイラー角ベースの判定から、3Dベクトル類似度（Cosine Similarity）ベースに移行しました。
+                これにより、ユーザーのカメラからの距離や角度に依存せず、極めて正確なポーズマッチングが可能になりました。
+            </p>
+            <div class="mermaid">
+                graph TD
+                A[MediaPipe World Landmarks] --> B[Body Frame Construction]
+                B --> C[Extract Segment Vectors]
+                C --> D[Unit Vector Normalization]
+                D --> E[Cosine Similarity Calculation]
+                E --> F{Judgment}
+                F -->| > 0.88 | G[PERFECT]
+                F -->| > 0.70 | H[GOOD]
+                F -->| Else | I[MISS]
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>2. 座標系の同期 (Ripple Marker)</h2>
+            <p>
+                ビデオのミラー表示 (CSS <code>scale-x[-1]</code>) に合わせ、判定空間を自動的に反転させています。
+            </p>
+            <code>dist = sqrt((1.0 - hand.x - marker.x)^2 + (hand.y - marker.y)^2)</code>
+            <div class="anim-box"></div>
+        </div>
+
+        <div class="card">
+            <h2>3. シミュレーションとレンダリングの最適化</h2>
+            <p>
+                <code>SkeletonUtils.clone</code> を活用し、VRMモデルのロード時間をゼロに短縮。
+                ガイド用のシルエット（左右から飛んでくるモデル）は、ユーザーのポーズ定義から直接ボーン回転を生成しています。
+            </p>
+        </div>
+    </div>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+</body>
+</html>
