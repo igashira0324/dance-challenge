@@ -336,7 +336,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
       setShareUrl(url);
     } catch (e) {
       console.error('Share failed', e);
-      setShareError('写真のアップロードに失敗しました。外部通信または uguu.se への接続を確認してください。');
+      setShareError('写真のアップロードに失敗しました。ネットワーク接続、または uguu.se / file.io への外部通信許可を確認してください。');
     } finally {
       setIsSharing(false);
     }

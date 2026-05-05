@@ -168,8 +168,11 @@ class PoseService {
         };
       });
     } catch (err) {
-      if (stream && stream !== this.stream) {
+      if (stream) {
         stream.getTracks().forEach(track => track.stop());
+        if (this.stream === stream) {
+          this.stream = null;
+        }
       }
       console.error("PoseService: Camera start failed", err);
       throw err;
