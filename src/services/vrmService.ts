@@ -244,13 +244,12 @@ class VRMService {
       vrm.expressionManager?.setValue(name, Math.max(0, Math.min(1, val)));
     };
 
-    // Blink - Kalidokit face.eye.l/r ranges from 0 (open) to 1 (closed)
-    // The user reports eyes staying closed, so we use a very high threshold:
-    // Only values above 0.7 trigger any blink at all. This means eyes are open
-    // in the vast majority of frames.
+    // Blink - Kalidokit face.eye.l/r ranges from 0 (open) to 1 (closed).
+    // Raised threshold to 0.87 so the avatar only blinks when eyes are almost
+    // fully shut. Below this value the expression is forced to 0 (fully open).
     if (face.eye) {
-      const blinkThreshold = 0.7;
-      const blinkScale = 1.0 / (1.0 - blinkThreshold); // = 3.33
+      const blinkThreshold = 0.87;
+      const blinkScale = 1.0 / (1.0 - blinkThreshold); // ≈ 7.7
       const adjustBlink = (val: number) => Math.max(0, (val - blinkThreshold) * blinkScale);
 
       s('blinkLeft', adjustBlink(face.eye.l ?? 0));

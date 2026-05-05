@@ -109,6 +109,15 @@ const App = () => {
     }
   };
 
+  const handleVrmChange = async (url: string) => {
+    try {
+      const newVrm = await vrmService.loadVRM(url);
+      setVrm(newVrm);
+    } catch (e) {
+      console.warn('VRM load failed in PhotoBooth', e);
+    }
+  };
+
   const handleStart = async () => {
     try {
       await startCamera();
@@ -283,7 +292,7 @@ const App = () => {
         )}
 
         {gameState === 'PHOTO_BOOTH' && (
-          <PhotoBooth vrm={vrm} onExit={() => setGameState('IDLE')} />
+          <PhotoBooth vrm={vrm} onExit={() => setGameState('IDLE')} onVrmChange={handleVrmChange} />
         )}
       </AnimatePresence>
     </div>
