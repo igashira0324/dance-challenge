@@ -25,7 +25,8 @@ class VRMService {
 
   private currentLoadId = 0;
   private _eulerPoseDebugDone = false;
-  private currentPoseCorrection: PoseCorrection = {};
+  private currentRestPoseCorrection: PoseCorrection = {};
+  private currentTrackingCorrection: PoseCorrection = {};
 
   constructor() {
     this.loader = new GLTFLoader();
@@ -106,11 +107,15 @@ class VRMService {
     });
   }
 
-  async loadVRM(url: string, options: { poseCorrection?: PoseCorrection } = {}): Promise<VRM> {
+  async loadVRM(url: string, options: { 
+    restPoseCorrection?: PoseCorrection,
+    trackingCorrection?: PoseCorrection 
+  } = {}): Promise<VRM> {
     const loadId = ++this.currentLoadId;
     this.clearCurrentFromScene();
 
-    this.currentPoseCorrection = options.poseCorrection ?? {};
+    this.currentRestPoseCorrection = options.restPoseCorrection ?? {};
+    this.currentTrackingCorrection = options.trackingCorrection ?? {};
 
     console.log(`Starting load VRM (ID: ${loadId}): ${url}`);
     
@@ -205,9 +210,9 @@ class VRMService {
   }
 
   private applyRestPoseCorrection(vrm: VRM, lerpAmount = 1.0) {
-    if (!vrm?.humanoid || !this.currentPoseCorrection) return;
+    if (!vrm?.humanoid || !this.currentRestPoseCorrection) return;
 
-    for (const [boneName, rot] of Object.entries(this.currentPoseCorrection)) {
+    for (const [boneName, rot] of Object.entries(this.currentRestPoseCorrection)) {
       const bone = vrm.humanoid.getNormalizedBoneNode(boneName as any);
       if (!bone || !rot) continue;
 
@@ -248,8 +253,8 @@ class VRMService {
       );
       const quaternion = new THREE.Quaternion().setFromEuler(euler);
 
-      // Apply correction if exists
-      const correction = this.currentPoseCorrection[name as VRMHumanBoneName];
+      // Apply tracking-specific correction if exists
+      const correction = this.currentTrackingCorrection[name as VRMHumanBoneName];
       if (correction) {
         const correctionQuat = new THREE.Quaternion().setFromEuler(
           new THREE.Euler(correction.x ?? 0, correction.y ?? 0, correction.z ?? 0)
