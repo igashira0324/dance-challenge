@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { VRM } from '@pixiv/three-vrm';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, User } from 'lucide-react';
@@ -30,6 +30,8 @@ const App = () => {
   const [modelError, setModelError] = useState<string | null>(null);
   const [isShaking, setIsShaking] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const didInitialLoadRef = useRef(false);
 
   const {
     score,
@@ -81,27 +83,8 @@ const App = () => {
     videoRef
   });
 
-  // --- Initial Setup ---
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    if (canvasRef.current) {
-      vrmService.init(canvasRef.current);
-    }
-    
-    // Auto-load default VRM
-    const defaultModel = BUILTIN_MODELS.find(m => m.id === DEFAULT_MODEL_ID);
-    if (defaultModel) {
-      handleLoadModel(defaultModel);
-    }
-
-    return () => {
-      audioEngine.stop();
-      stopCamera();
-    };
-  }, [stopCamera]);
-
   // --- Handlers ---
-  const handleLoadModel = async (model: BuiltinModel) => {
+  const handleLoadModel = useCallback(async (model: BuiltinModel) => {
     setIsModelLoading(true);
     setModelError(null);
     try {
@@ -114,7 +97,28 @@ const App = () => {
     } finally {
       setIsModelLoading(false);
     }
-  };
+  }, []);
+
+  // --- Initial Setup ---
+  useEffect(() => {
+    if (canvasRef.current) {
+      vrmService.init(canvasRef.current);
+    }
+    
+    // Auto-load default VRM once
+    if (!didInitialLoadRef.current) {
+      didInitialLoadRef.current = true;
+      const defaultModel = BUILTIN_MODELS.find(m => m.id === DEFAULT_MODEL_ID);
+      if (defaultModel) {
+        handleLoadModel(defaultModel);
+      }
+    }
+
+    return () => {
+      audioEngine.stop();
+      stopCamera();
+    };
+  }, [handleLoadModel, stopCamera]);
 
   const handleVRMUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -136,10 +140,11 @@ const App = () => {
     }
   };
 
-  const handleVrmChange = async (url: string) => {
+  const handleVrmChange = async (modelId: string, url: string) => {
     try {
       const newVrm = await vrmService.loadVRM(url);
       setVrm(newVrm);
+      setSelectedModelId(modelId);
     } catch (e) {
       console.warn('VRM load failed', e);
       throw e;
@@ -261,7 +266,8 @@ const App = () => {
 
               <button
                 onClick={() => setGameState('PHOTO_BOOTH')}
-                className="w-full py-4 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-200 font-bold rounded-2xl border border-fuchsia-400/30 text-sm tracking-[0.1em] transition-all flex items-center justify-center gap-2 active:scale-95"
+                disabled={!vrm || isModelLoading}
+                className="w-full py-4 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-200 font-bold rounded-2xl border border-fuchsia-400/30 text-sm tracking-[0.1em] transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-30 disabled:grayscale"
               >
                 📸 PHOTO BOOTH with MIKU
               </button>

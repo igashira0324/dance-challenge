@@ -13,7 +13,7 @@ interface Props {
   vrm: VRM | null;
   selectedModelId: string;
   onExit: () => void;
-  onVrmChange: (url: string) => Promise<void>;
+  onVrmChange: (modelId: string, url: string) => Promise<void>;
 }
 
 
@@ -26,6 +26,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   const [isFlash, setIsFlash] = useState(false);
   const [showModelPanel, setShowModelPanel] = useState(false);
   const [isLoadingModel, setIsLoadingModel] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef(0);
   const lastPoseRef = useRef<any>(null);
@@ -226,11 +227,13 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   // --- Model selection ---
   const handleSelectBuiltin = async (model: BuiltinModel) => {
     setIsLoadingModel(true);
+    setModelError(null);
     setShowModelPanel(false);
     try {
-      await onVrmChange(model.url);
+      await onVrmChange(model.id, model.url);
     } catch (e) {
       console.warn('Model load failed', e);
+      setModelError('モデルの読み込みに失敗しました');
     } finally {
       setIsLoadingModel(false);
     }
@@ -241,11 +244,13 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     if (!file) return;
     const url = URL.createObjectURL(file);
     setIsLoadingModel(true);
+    setModelError(null);
     setShowModelPanel(false);
     try {
-      await onVrmChange(url);
+      await onVrmChange(file.name, url);
     } catch (e) {
       console.warn('Custom model load failed', e);
+      setModelError('モデルの読み込みに失敗しました');
     } finally {
       URL.revokeObjectURL(url);
       setIsLoadingModel(false);
@@ -493,7 +498,15 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
               </AnimatePresence>
 
               {isLoadingModel && (
-                <p className="text-[9px] text-cyan-400 animate-pulse mt-2">Loading model...</p>
+                <p className="text-[9px] text-cyan-400 animate-pulse mt-2 flex items-center gap-2">
+                  <RefreshCw size={10} className="animate-spin" /> Loading model...
+                </p>
+              )}
+
+              {modelError && (
+                <p className="text-[9px] text-rose-400 mt-2 flex items-center gap-1 font-bold">
+                  ⚠️ {modelError}
+                </p>
               )}
             </div>
           </div>
