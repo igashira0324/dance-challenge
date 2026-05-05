@@ -1,5 +1,4 @@
 @echo off
-echo Starting AI Dance Challenge...
-cd /d %~dp0
+echo AI Dance Challenge - Starting...
 npm run dev
 pause

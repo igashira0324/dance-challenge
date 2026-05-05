@@ -50,21 +50,25 @@ const checkPoseMatch = (
   if (target.type === 'Ripple') {
     if (!imageLandmarks || imageLandmarks.length === 0) return { result: 'MISS', similarity: 0 };
 
-    const limbIdx = target.targetLimb === 'rightWrist' ? 16 : 15;
-    const hand = imageLandmarks[limbIdx];
-    if (!hand) return { result: 'MISS', similarity: 0 };
+    const correctedLandmarks = imageLandmarks.map(lm => ({
+      ...lm,
+      x: 1.0 - lm.x 
+    }));
 
-    // アスペクト比を考慮した距離計算 (Y方向を1.0とした相対距離)
-    const dx = ((1.0 - hand.x) - target.x) * videoAspectRatio;
-    const dy = (hand.y - target.y);
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    
-    // 距離を0-1の「類似度」に変換 (0.3を最大半径とする)
-    const similarity = Math.max(0, 1.0 - dist / 0.3);
-    
-    if (dist < 0.12) return { result: 'PERFECT', similarity };
-    if (dist < 0.22) return { result: 'GOOD', similarity };
-    return { result: 'MISS', similarity };
+    const leftWrist = correctedLandmarks[15] ?? correctedLandmarks[13];
+    const rightWrist = correctedLandmarks[16] ?? correctedLandmarks[14];
+    const hand = target.targetLimb === 'leftWrist' ? leftWrist : rightWrist;
+
+    if (hand) {
+      // アスペクト比を考慮して距離を計算 (横長の歪みを補正)
+      const dx = (hand.x - target.x) * videoAspectRatio;
+      const dy = (hand.y - target.y);
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 0.12) return { result: 'PERFECT', similarity: 1.0 - dist };
+      if (dist < 0.22) return { result: 'GOOD', similarity: 1.0 - dist };
+    }
+    return { result: 'MISS', similarity: 0 };
   }
 
   return { result: 'MISS', similarity: 0 }; 
@@ -93,6 +97,7 @@ const App = () => {
   const comboRef = useRef(0); // Use ref for logic to avoid animate recreate
   const judgmentTimeoutRef = useRef<number | null>(null);
   const bestResultsRef = useRef<Map<string, 'PERFECT' | 'GOOD' | 'MISS'>>(new Map());
+  const bestTimingRef = useRef<Map<string, number>>(new Map());
 
   // --- Initial Setup ---
   useEffect(() => {
@@ -240,16 +245,22 @@ const App = () => {
           if (result !== 'MISS') {
             const currentBest = bestResultsRef.current.get(marker.id) || 'MISS';
             
+            // ベスト評価と、その時のタイミングを記録
+            if (result === 'PERFECT' || (result === 'GOOD' && currentBest === 'MISS')) {
+              bestResultsRef.current.set(marker.id, result);
+              
+              // 以前の記録より中央に近い（絶対値が小さい）場合は更新
+              const prevBestT = bestTimingRef.current.get(marker.id);
+              if (prevBestT === undefined || Math.abs(timeToHit) < Math.abs(prevBestT)) {
+                bestTimingRef.current.set(marker.id, timeToHit);
+              }
+            }
+
             // PERFECTなら即時確定（最高評価のため）
             if (result === 'PERFECT') {
               const timingFactor = Math.max(0.5, 1.0 - (Math.max(0, Math.abs(timeToHit) - 0.15) / 0.45));
               evaluateMarker(marker, 'PERFECT', timingFactor);
               scoredPosesRef.current.add(marker.id);
-              bestResultsRef.current.set(marker.id, 'PERFECT');
-            } 
-            // GOODなら保持（後でPERFECTになる可能性があるため）
-            else if (result === 'GOOD' && currentBest === 'MISS') {
-              bestResultsRef.current.set(marker.id, 'GOOD');
             }
           }
         } 
@@ -257,7 +268,10 @@ const App = () => {
         // 判定期間終了（PERFECTを逃した場合の最終評価）
         if (timeToHit < -HIT_WINDOW && !scoredPosesRef.current.has(marker.id)) {
           const finalResult = bestResultsRef.current.get(marker.id) || 'MISS';
-          evaluateMarker(marker, finalResult, 0.7); // 窓際評価なのでボーナス低め
+          const bestT = bestTimingRef.current.get(marker.id) ?? -HIT_WINDOW;
+          const timingFactor = Math.max(0.5, 1.0 - (Math.max(0, Math.abs(bestT) - 0.15) / 0.45));
+          
+          evaluateMarker(marker, finalResult, timingFactor);
           scoredPosesRef.current.add(marker.id);
         }
       });

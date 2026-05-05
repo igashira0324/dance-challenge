@@ -74,59 +74,59 @@ export class Lyric {
 // =============================================
 const V: Record<string, PoseFeatures> = {
   T_POSE: {
-    leftUpperArm: { x: 1, y: 0, z: 0 },
-    leftLowerArm: { x: 1, y: 0, z: 0 },
-    rightUpperArm: { x: -1, y: 0, z: 0 },
-    rightLowerArm: { x: -1, y: 0, z: 0 }
+    leftUpperArm: { x: -1, y: 0, z: 0 },
+    leftLowerArm: { x: -1, y: 0, z: 0 },
+    rightUpperArm: { x: 1, y: 0, z: 0 },
+    rightLowerArm: { x: 1, y: 0, z: 0 }
   },
   BANZAI: {
-    leftUpperArm: { x: 0.2, y: 0.98, z: 0 },
-    leftLowerArm: { x: 0.2, y: 0.98, z: 0 },
-    rightUpperArm: { x: -0.2, y: 0.98, z: 0 },
-    rightLowerArm: { x: -0.2, y: 0.98, z: 0 }
+    leftUpperArm: { x: 0, y: 1, z: 0 },
+    leftLowerArm: { x: 0, y: 1, z: 0 },
+    rightUpperArm: { x: 0, y: 1, z: 0 },
+    rightLowerArm: { x: 0, y: 1, z: 0 }
   },
   Y_POSE: {
-    leftUpperArm: { x: 0.7, y: 0.7, z: 0 },
-    leftLowerArm: { x: 0.7, y: 0.7, z: 0 },
-    rightUpperArm: { x: -0.7, y: 0.7, z: 0 },
-    rightLowerArm: { x: -0.7, y: 0.7, z: 0 }
+    leftUpperArm: { x: -0.7, y: 0.7, z: 0 },
+    leftLowerArm: { x: -0.7, y: 0.7, z: 0 },
+    rightUpperArm: { x: 0.7, y: 0.7, z: 0 },
+    rightLowerArm: { x: 0.7, y: 0.7, z: 0 }
   },
   R_UP: {
-    leftUpperArm:  { x:  0.2, y: -0.98, z: 0 },
-    leftLowerArm:  { x:  0.2, y: -0.98, z: 0 },
-    rightUpperArm: { x: -0.2, y:  0.98, z: 0 },
-    rightLowerArm: { x: -0.2, y:  0.98, z: 0 }
+    leftUpperArm: { x: -0.2, y: -0.98, z: 0 },
+    leftLowerArm: { x: -0.2, y: -0.98, z: 0 },
+    rightUpperArm: { x: 0.2, y: 0.98, z: 0 },
+    rightLowerArm: { x: 0.2, y: 0.98, z: 0 }
   },
   L_UP: {
-    leftUpperArm:  { x:  0.2, y:  0.98, z: 0 },
-    leftLowerArm:  { x:  0.2, y:  0.98, z: 0 },
-    rightUpperArm: { x: -0.2, y: -0.98, z: 0 },
-    rightLowerArm: { x: -0.2, y: -0.98, z: 0 }
+    leftUpperArm: { x: -0.2, y: 0.98, z: 0 },
+    leftLowerArm: { x: -0.2, y: 0.98, z: 0 },
+    rightUpperArm: { x: 0.2, y: -0.98, z: 0 },
+    rightLowerArm: { x: 0.2, y: -0.98, z: 0 }
   },
   GUTS_R: {
-    leftUpperArm:  { x:  0.2, y: -0.95, z: 0 },
-    leftLowerArm:  { x:  0.2, y: -0.95, z: 0 },
-    rightUpperArm: { x: -0.95, y: 0.2, z: 0 },
-    rightLowerArm: { x: 0.0,  y: 1.0, z: 0 }
+    leftUpperArm: { x: -0.2, y: -0.95, z: 0 },
+    leftLowerArm: { x: -0.2, y: -0.95, z: 0 },
+    rightUpperArm: { x: 0.95, y: 0.2, z: 0 },
+    rightLowerArm: { x: 0.0, y: 1.0, z: 0 }
   },
   GUTS_L: {
-    leftUpperArm:  { x:  0.95, y: 0.2, z: 0 },
-    leftLowerArm:  { x:  0.0,  y: 1.0, z: 0 },
-    rightUpperArm: { x: -0.2, y: -0.95, z: 0 },
-    rightLowerArm: { x: -0.2, y: -0.95, z: 0 }
+    leftUpperArm: { x: -0.95, y: 0.2, z: 0 },
+    leftLowerArm: { x: 0.0, y: 1.0, z: 0 },
+    rightUpperArm: { x: 0.2, y: -0.95, z: 0 },
+    rightLowerArm: { x: 0.2, y: -0.95, z: 0 }
   },
   THRUST: {
-    leftUpperArm:  { x: 0, y: 0, z: 1 },
-    leftLowerArm:  { x: 0, y: 0, z: 1 },
+    leftUpperArm: { x: 0, y: 0, z: 1 },
+    leftLowerArm: { x: 0, y: 0, z: 1 },
     rightUpperArm: { x: 0, y: 0, z: 1 },
     rightLowerArm: { x: 0, y: 0, z: 1 }
   },
   V_UP: {
-    leftUpperArm:  { x:  0.5, y: 0.85, z: 0 },
-    leftLowerArm:  { x:  0.3, y: 0.95, z: 0 },
-    rightUpperArm: { x: -0.5, y: 0.85, z: 0 },
-    rightLowerArm: { x: -0.3, y: 0.95, z: 0 }
-  },
+    leftUpperArm: { x: -0.5, y: 0.85, z: 0 },
+    leftLowerArm: { x: -0.3, y: 0.95, z: 0 },
+    rightUpperArm: { x: 0.5, y: 0.85, z: 0 },
+    rightLowerArm: { x: 0.3, y: 0.95, z: 0 }
+  }
 };
 
 export const DEMO_MARKERS: MarkerTarget[] = [

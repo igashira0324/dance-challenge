@@ -58,10 +58,21 @@ class PoseService {
     }
   }
 
+  /**
+   * 映像フレームからポーズを検出する
+   * @param video ビデオ要素
+   * @param timestamp タイムスタンプ (ミリ秒)
+   */
   detect(video: HTMLVideoElement, timestamp: number) {
     if (!this.landmarker || video.readyState < 2) return null;
+
+    // MediaPipe Tasksはマイクロ秒(us)単位かつ単調増加を期待する
+    // 重複や逆転を防ぐために前回の値+1を保証する
+    const us = Math.max(this.lastTimestamp + 1, Math.floor(timestamp * 1000));
+    this.lastTimestamp = us;
+
     try {
-      return this.landmarker.detectForVideo(video, timestamp);
+      return this.landmarker.detectForVideo(video, us);
     } catch (e) {
       console.error("PoseService: Detection failed", e);
       return null;
