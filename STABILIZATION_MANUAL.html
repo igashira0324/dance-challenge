@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>AI DANCE CHALLENGE - STABILIZATION MANUAL</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;900&family=JetBrains+Mono:wght@500&display=swap');
+        
+        :root {
+            --neon-blue: #00ffff;
+            --neon-magenta: #ff00ff;
+            --neon-green: #00ff88;
+            --bg-dark: #050505;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-dark);
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        .hero {
+            height: 60vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #000 100%);
+            position: relative;
+            overflow: hidden;
+            border-bottom: 2px solid var(--neon-blue);
+        }
+
+        .hero::before {
+            content: "";
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background-image: linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            transform: perspective(500px) rotateX(60deg) translateY(-50%);
+            animation: grid-move 20s linear infinite;
+        }
+
+        @keyframes grid-move {
+            0% { transform: perspective(500px) rotateX(60deg) translateY(-50%); }
+            100% { transform: perspective(500px) rotateX(60deg) translateY(0%); }
+        }
+
+        h1 {
+            font-size: 5rem;
+            font-weight: 900;
+            z-index: 10;
+            text-transform: uppercase;
+            letter-spacing: -4px;
+            background: linear-gradient(to bottom, #fff, #888);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 20px rgba(0, 255, 255, 0.5));
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: -100px auto 100px;
+            position: relative;
+            z-index: 20;
+        }
+
+        .card {
+            background: rgba(15, 15, 25, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 40px;
+            padding: 3rem;
+            margin-bottom: 3rem;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        h2 {
+            color: var(--neon-blue);
+            font-size: 2rem;
+            border-bottom: 2px solid rgba(0, 255, 255, 0.2);
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .mermaid {
+            background: #fff;
+            padding: 2rem;
+            border-radius: 20px;
+            margin: 2rem 0;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .feature-box {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2rem;
+            border-radius: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: 0.3s;
+        }
+
+        .feature-box:hover {
+            border-color: var(--neon-magenta);
+            transform: translateY(-5px);
+        }
+
+        .feature-box h3 {
+            color: var(--neon-magenta);
+            margin-top: 0;
+        }
+
+        .indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .perfect { background: var(--neon-green); box-shadow: 0 0 10px var(--neon-green); }
+        .good { background: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue); }
+        .miss { background: #555; }
+
+        .demo-anim {
+            width: 100%;
+            height: 120px;
+            background: #000;
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+            margin: 1.5rem 0;
+        }
+
+        .target-circle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            border: 2px solid var(--neon-blue);
+            border-radius: 50%;
+        }
+
+        .hand-circle {
+            position: absolute;
+            top: 50%;
+            left: 20%;
+            transform: translate(-50%, -50%);
+            width: 30px;
+            height: 30px;
+            background: var(--neon-magenta);
+            border-radius: 50%;
+            animation: move-hand 4s infinite ease-in-out;
+        }
+
+        @keyframes move-hand {
+            0%, 100% { left: 20%; top: 30%; }
+            50% { left: 80%; top: 70%; }
+        }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            color: var(--neon-blue);
+        }
+
+        .bat-box {
+            background: #111;
+            padding: 1.5rem;
+            border-radius: 15px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            border-left: 4px solid var(--neon-green);
+        }
+
+        footer {
+            text-align: center;
+            padding: 5rem;
+            opacity: 0.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <h1>STABILIZED</h1>
+        <p style="z-index: 10; letter-spacing: 0.5rem; color: var(--neon-magenta); font-weight: 900;">AI DANCE CHALLENGE ENGINE</p>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h2>1. 3Dポーズ判定エンジン</h2>
+            <p>従来のオイラー角ベースから、体ローカル座標系における<b>3D単位ベクトル</b>による判定へ移行しました。これにより、カメラからの距離や身長に関わらず安定した判定が可能になりました。</p>
+            
+            <div class="mermaid">
+                graph LR
+                    A[Raw Data] --> B(Local Basis Construction)
+                    B --> C(Vector Normalization)
+                    C --> D(Cosine Similarity Comparison)
+                    D -->| > 0.86| E[PERFECT]
+                    D -->| > 0.65| F[GOOD]
+            </div>
+
+            <div class="grid">
+                <div class="feature-box">
+                    <h3>ミラー補正 (Mirroring)</h3>
+                    <p><code>Alt+C</code>でのキャプチャ時および実行時に一貫したミラー補正（X軸反転）を適用。ユーザーが鏡を見ている感覚で直感的に踊れるよう最適化されています。</p>
+                </div>
+                <div class="feature-box">
+                    <h3>ベクトル特徴抽出</h3>
+                    <p><code>extractPoseFeatures</code> により、上腕と前腕の方向を正規化。アバターの骨格構造に依存しない汎用的な判定を実現しています。</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>2. リズム・スコアリング同期</h2>
+            <p>ダンエボのような「ノリ」を再現するため、ポーズ精度だけでなくタイミング（Accuracy）を重視した設計になっています。</p>
+            
+            <div class="demo-anim">
+                <div class="target-circle"></div>
+                <div class="hand-circle"></div>
+                <div style="position: absolute; right: 20px; top: 40px; color: var(--neon-green); font-weight: 900; font-size: 1.5rem;">PERFECT!</div>
+            </div>
+
+            <div class="grid">
+                <div class="feature-box">
+                    <h3>タイミング・ウィンドウ</h3>
+                    <p>ヒット時刻から ±0.6秒を判定窓とし、PERFECTは即時フィードバック。GOODはウィンドウ終了までPERFECTへの昇格チャンスを維持します。</p>
+                </div>
+                <div class="feature-box">
+                    <h3>アスペクト比補正</h3>
+                    <p>Ripple判定において、動画の解像度（16:9等）に合わせてX軸の距離を補正。画面端のマーカーでも円形の判定を保ちます。</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>3. 実行環境 (Windows)</h2>
+            <p>本エンジンの安定版を実行するには、以下のバッチファイルを使用してください。</p>
+            <div class="bat-box">
+                @echo off<br>
+                echo Launching AI Dance Challenge Stabilized...<br>
+                npm run dev
+            </div>
+            <p style="margin-top: 1rem;">※ <code>Alt+C</code> を押すことで、現在のポーズをJSON形式でコンソール出力し、楽曲データへ組み込むことができます。</p>
+        </div>
+    </div>
+
+    <footer>
+        &copy; 2026 Advanced Agentic Coding - Deepmind Antigravity
+    </footer>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+</body>
+</html>

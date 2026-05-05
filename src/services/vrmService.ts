@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRM } from '@pixiv/three-vrm';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { PoseFeatures } from '../utils/poseUtils';
+import type { PoseFeatures } from '../utils/poseUtils';
 
 class VRMService {
   private loader: GLTFLoader;
@@ -238,6 +238,10 @@ class VRMService {
       
       // 3. 適用
       bone.quaternion.slerp(localQuat, lerpAmount);
+      
+      // 4. 即時更新（親子関係の同期を保証）
+      bone.updateMatrix();
+      bone.updateMatrixWorld(true);
     };
 
     const RIGHT = new THREE.Vector3(-1, 0, 0); // キャラから見て右 (-X)

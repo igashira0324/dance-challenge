@@ -7,7 +7,7 @@ export type AnimationType =
 
 export type MarkerType = 'Ripple' | 'Stream' | 'Lock' | 'Silhouette';
 
-import { PoseFeatures } from '../utils/poseUtils';
+import type { PoseFeatures } from '../utils/poseUtils';
 
 export class MarkerTarget {
   hitTime: number;

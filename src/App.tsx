@@ -15,20 +15,20 @@ import KineticTypography from './components/KineticTypography';
 
 import { 
   extractPoseFeatures, 
-  calculatePoseSimilarity, 
-  PoseFeatures 
+  calculatePoseSimilarity
 } from './utils/poseUtils';
 
 const checkPoseMatch = (
   worldLandmarks: any[], 
   imageLandmarks: any[], 
-  target: MarkerTarget
-): 'PERFECT' | 'GOOD' | 'MISS' => {
-  if (!worldLandmarks || worldLandmarks.length === 0) return 'MISS';
+  target: MarkerTarget,
+  videoAspectRatio: number = 1.0
+): { result: 'PERFECT' | 'GOOD' | 'MISS', similarity: number } => {
+  if (!worldLandmarks || worldLandmarks.length === 0) return { result: 'MISS', similarity: 0 };
 
   // --- Silhouette Pose Matching (3D Vector Basis) ---
   if (target.type === 'Silhouette') {
-    if (!target.targetPoseVectors) return 'MISS';
+    if (!target.targetPoseVectors) return { result: 'MISS', similarity: 0 };
     
     const correctedLandmarks = worldLandmarks.map(lm => ({
       ...lm,
@@ -36,31 +36,38 @@ const checkPoseMatch = (
     }));
 
     const userFeatures = extractPoseFeatures(correctedLandmarks);
-    if (!userFeatures) return 'MISS';
+    if (!userFeatures) return { result: 'MISS', similarity: 0 };
 
     const similarity = calculatePoseSimilarity(userFeatures, target.targetPoseVectors);
     
-    if (similarity > 0.88) return 'PERFECT'; 
-    if (similarity > 0.70) return 'GOOD';
-    return 'MISS';
+    // ダンエボ風しきい値調整
+    if (similarity > 0.86) return { result: 'PERFECT', similarity }; 
+    if (similarity > 0.65) return { result: 'GOOD', similarity };
+    return { result: 'MISS', similarity };
   }
 
   // --- Ripple Hand Matching (2D Screen Basis) ---
   if (target.type === 'Ripple') {
-    if (!imageLandmarks || imageLandmarks.length === 0) return 'MISS';
+    if (!imageLandmarks || imageLandmarks.length === 0) return { result: 'MISS', similarity: 0 };
 
     const limbIdx = target.targetLimb === 'rightWrist' ? 16 : 15;
     const hand = imageLandmarks[limbIdx];
-    if (!hand) return 'MISS';
+    if (!hand) return { result: 'MISS', similarity: 0 };
 
-    const dist = Math.sqrt(Math.pow((1.0 - hand.x) - target.x, 2) + Math.pow(hand.y - target.y, 2));
+    // アスペクト比を考慮した距離計算 (Y方向を1.0とした相対距離)
+    const dx = ((1.0 - hand.x) - target.x) * videoAspectRatio;
+    const dy = (hand.y - target.y);
+    const dist = Math.sqrt(dx * dx + dy * dy);
     
-    if (dist < 0.12) return 'PERFECT';
-    if (dist < 0.22) return 'GOOD';
-    return 'MISS';
+    // 距離を0-1の「類似度」に変換 (0.3を最大半径とする)
+    const similarity = Math.max(0, 1.0 - dist / 0.3);
+    
+    if (dist < 0.12) return { result: 'PERFECT', similarity };
+    if (dist < 0.22) return { result: 'GOOD', similarity };
+    return { result: 'MISS', similarity };
   }
 
-  return 'MISS'; 
+  return { result: 'MISS', similarity: 0 }; 
 };
 
 const App = () => {
@@ -122,8 +129,17 @@ const App = () => {
         if (features) {
           console.group("📸 Captured Pose Vectors (Metric)");
           console.log("Copy and paste this into constants/index.ts:");
-          console.log("targetPoseVectors: " + JSON.stringify(features, (key, value) => 
+          console.log("targetPoseVectors: " + JSON.stringify(features, (_key, value) => 
             typeof value === 'number' ? parseFloat(value.toFixed(3)) : value, 2));
+          
+          // 現在の画面上のマーカーと比較して類似度を表示（デバッグ用）
+          const musicTime = audioEngine.getCurrentTime();
+          const nearestMarker = DEMO_MARKERS.find(m => Math.abs(m.hitTime - musicTime) < 1.5);
+          if (nearestMarker?.targetPoseVectors) {
+            const sim = calculatePoseSimilarity(features, nearestMarker.targetPoseVectors);
+            console.log(`Current Similarity to "${nearestMarker.name}": ${(sim * 100).toFixed(1)}%`);
+          }
+          
           console.groupEnd();
           alert("Pose Captured! check console (F12) for the code.");
         }
@@ -151,7 +167,7 @@ const App = () => {
     }
   }, [vrm]);
 
-  const evaluateMarker = useCallback((target: MarkerTarget, result: 'PERFECT' | 'GOOD' | 'MISS') => {
+  const evaluateMarker = useCallback((_target: MarkerTarget, result: 'PERFECT' | 'GOOD' | 'MISS', timingBonus: number = 1.0) => {
     const newJudgment = { 
       text: result === 'PERFECT' ? 'PERFECT!' : result === 'GOOD' ? 'GOOD' : 'MISS', 
       id: Date.now() 
@@ -159,12 +175,19 @@ const App = () => {
     setJudgment(newJudgment);
 
     if (result !== 'MISS') {
-      const points = result === 'PERFECT' ? 10 : 5;
+      // 基本点 (PERFECT: 100, GOOD: 50) + タイミングボーナス (最大20)
+      const basePoints = result === 'PERFECT' ? 100 : 50;
+      const points = Math.round(basePoints * timingBonus);
+      
       setScore(prev => prev + points);
       setCombo(prev => {
         const next = prev + 1;
         comboRef.current = next;
-        if (next > 10) confetti();
+        if (next > 10 && next % 5 === 0) confetti({
+          particleCount: 40,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
         return next;
       });
     } else {
@@ -204,26 +227,37 @@ const App = () => {
 
         const timeToHit = marker.hitTime - musicTime;
         const HIT_WINDOW = 0.6; 
+        const aspect = videoRef.current ? videoRef.current.videoWidth / videoRef.current.videoHeight : 1.77;
 
         if (Math.abs(timeToHit) < HIT_WINDOW) {
-          const result = checkPoseMatch(
+          const { result } = checkPoseMatch(
             worldLandmarksRef.current, 
             imageLandmarksRef.current, 
-            marker
+            marker,
+            aspect
           );
 
           if (result !== 'MISS') {
             const currentBest = bestResultsRef.current.get(marker.id) || 'MISS';
-            if (result === 'PERFECT' || (result === 'GOOD' && currentBest === 'MISS')) {
-              bestResultsRef.current.set(marker.id, result);
+            
+            // PERFECTなら即時確定（最高評価のため）
+            if (result === 'PERFECT') {
+              const timingFactor = Math.max(0.5, 1.0 - (Math.max(0, Math.abs(timeToHit) - 0.15) / 0.45));
+              evaluateMarker(marker, 'PERFECT', timingFactor);
+              scoredPosesRef.current.add(marker.id);
+              bestResultsRef.current.set(marker.id, 'PERFECT');
+            } 
+            // GOODなら保持（後でPERFECTになる可能性があるため）
+            else if (result === 'GOOD' && currentBest === 'MISS') {
+              bestResultsRef.current.set(marker.id, 'GOOD');
             }
           }
         } 
         
-        // 判定期間終了
+        // 判定期間終了（PERFECTを逃した場合の最終評価）
         if (timeToHit < -HIT_WINDOW && !scoredPosesRef.current.has(marker.id)) {
           const finalResult = bestResultsRef.current.get(marker.id) || 'MISS';
-          evaluateMarker(marker, finalResult);
+          evaluateMarker(marker, finalResult, 0.7); // 窓際評価なのでボーナス低め
           scoredPosesRef.current.add(marker.id);
         }
       });
