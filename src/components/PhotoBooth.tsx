@@ -455,7 +455,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
 
         // Draw Moji (Top Left)
         const mojiSize = tempCanvas.height * 0.3;
-        ctx.drawImage(imgMoji, 20, 20, mojiSize, mojiSize);
+        ctx.drawImage(imgMoji, 20, 5, mojiSize, mojiSize);
 
         // Draw Chibi (Top Right)
         const chibiSize = tempCanvas.height * 0.35;

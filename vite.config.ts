@@ -38,16 +38,16 @@ function externalUploadPlugin() {
           const tmpPath = path.join(os.tmpdir(), filename)
           fs.writeFileSync(tmpPath, buffer)
 
-          // NOTE: We use "env -u http_proxy -u https_proxy" to bypass
-          // the corporate proxy settings baked into ~/.bashrc, which
-          // break all external connections when not on the corp network.
+          // NOTE: We use "env -u ..." to bypass all variants of proxy settings
+          // which might be baked into the environment and break direct Wi-Fi connections.
+          const unsetProxy = 'env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY';
 
           // 1. Primary: uguu.se (confirmed working 2026-05-05)
           try {
             console.log(`[externalUploadPlugin] Trying uguu.se...`);
             const stdout = execSync(
-              `env -u http_proxy -u https_proxy curl -s -L -F "files[]=@${tmpPath}" "https://uguu.se/upload"`,
-              { encoding: 'utf-8', timeout: 30000 }
+              `${unsetProxy} curl -s -L -F "files[]=@${tmpPath}" "https://uguu.se/upload"`,
+              { encoding: 'utf-8', timeout: 60000 }
             )
             const result = JSON.parse(stdout)
 
@@ -66,8 +66,8 @@ function externalUploadPlugin() {
           try {
             console.log(`[externalUploadPlugin] Trying file.io...`);
             const stdout = execSync(
-              `env -u http_proxy -u https_proxy curl -s -L -F "file=@${tmpPath}" "https://file.io/?expires=1d"`,
-              { encoding: 'utf-8', timeout: 30000 }
+              `${unsetProxy} curl -s -L -F "file=@${tmpPath}" "https://file.io/?expires=1d"`,
+              { encoding: 'utf-8', timeout: 60000 }
             )
 
             // file.io may return HTML instead of JSON if API has changed
