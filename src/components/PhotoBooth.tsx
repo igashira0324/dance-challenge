@@ -213,14 +213,22 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
     ctx.fillText('♪', x + 280, y - 30);
     ctx.fillText('♫', x + 310, y - 50);
 
-    // --- Date stamp (bottom-right) ---
+    // --- Date stamp & Event name (bottom-right) ---
     const now = new Date();
     const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
+    const eventName = 'なんでも生成AI展示会 Vol.5';
+    
+    ctx.font = 'bold 24px "Noto Sans JP", sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.shadowColor = MIKU_COLOR;
+    ctx.shadowBlur = 10;
+    ctx.textAlign = 'right';
+    ctx.fillText(eventName, w - 40, h - 70);
+    
     ctx.font = 'bold 20px "Outfit", monospace';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur = 8;
-    ctx.textAlign = 'right';
     ctx.fillText(dateStr, w - 40, h - 40);
 
     ctx.restore();
@@ -284,8 +292,8 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
   };
 
   return (
-    // z-[50] to be above the App.tsx <canvas> at z-10
-    <div className="absolute inset-0 z-[50] overflow-hidden">
+    // Removed z-[50] to avoid creating a new stacking context that hides the App canvas
+    <div className="absolute inset-0 overflow-hidden">
       {/* Background Video — behind 3D canvas */}
       <video 
         ref={videoRef} 
