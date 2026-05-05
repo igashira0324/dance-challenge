@@ -102,7 +102,11 @@ class VRMService {
 
     // ボーン名のマッピングを保存
     this.humanoidBoneNameMap.clear();
-    const HUMANOID_BONES = ['leftUpperArm', 'leftLowerArm', 'rightUpperArm', 'rightLowerArm'];
+    const HUMANOID_BONES = [
+      'leftUpperArm', 'leftLowerArm', 'rightUpperArm', 'rightLowerArm',
+      'leftUpperLeg', 'leftLowerLeg', 'rightUpperLeg', 'rightLowerLeg',
+      'spine', 'hips'
+    ];
     for (const name of HUMANOID_BONES) {
       const node = vrm.humanoid.getNormalizedBoneNode(name as any);
       if (node) this.humanoidBoneNameMap.set(name, node.name);
@@ -207,10 +211,9 @@ class VRMService {
     };
 
     // Blink - Kalidokit face.eye.l/r ranges from 0 (open) to 1 (closed)
-    // The raw values tend to report partially closed even when eyes are open,
-    // so we apply a dead zone (threshold) and rescale
+    // The user reported eyes staying closed. Increasing threshold to be more conservative.
     if (face.eye) {
-      const blinkThreshold = 0.5;  // Ignore values below this (treat as "open")
+      const blinkThreshold = 0.6;  // Higher threshold to ensure eyes stay open unless clearly closed
       const blinkScale = 1.0 / (1.0 - blinkThreshold);
       const adjustBlink = (val: number) => Math.max(0, (val - blinkThreshold) * blinkScale);
 
@@ -226,6 +229,36 @@ class VRMService {
       s('ee', face.mouth.shape.E);
       s('oh', face.mouth.shape.O);
     }
+  }
+
+  applyEulerPose(target: VRM | THREE.Group, pose: any, lerpAmount = 1.0) {
+    const isVrm = (target as any).humanoid !== undefined;
+    const bones = target === this.silhouetteL ? this.silhouetteLBones :
+                  target === this.silhouetteR ? this.silhouetteRBones : null;
+
+    const set = (humanoidName: string, rot: {x:number,y:number,z:number}) => {
+      let bone: THREE.Object3D | null = null;
+      if (isVrm) {
+        bone = (target as VRM).humanoid.getNormalizedBoneNode(humanoidName as any);
+      } else {
+        const threeName = this.humanoidBoneNameMap.get(humanoidName);
+        if (threeName && bones) bone = bones.get(threeName) || null;
+      }
+      if (!bone) return;
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rot.x, rot.y, rot.z));
+      bone.quaternion.slerp(q, lerpAmount);
+    };
+
+    if (pose.RightUpperArm) set('rightUpperArm', pose.RightUpperArm);
+    if (pose.RightLowerArm) set('rightLowerArm', pose.RightLowerArm);
+    if (pose.LeftUpperArm)  set('leftUpperArm',  pose.LeftUpperArm);
+    if (pose.LeftLowerArm)  set('leftLowerArm',  pose.LeftLowerArm);
+    if (pose.RightUpperLeg) set('rightUpperLeg', pose.RightUpperLeg);
+    if (pose.LeftUpperLeg)  set('leftUpperLeg',  pose.LeftUpperLeg);
+    if (pose.RightLowerLeg) set('rightLowerLeg', pose.RightLowerLeg);
+    if (pose.LeftLowerLeg)  set('leftLowerLeg',  pose.LeftLowerLeg);
+    if (pose.Spine)         set('spine',         pose.Spine);
+    if (pose.Hips?.rotation) set('hips',         pose.Hips.rotation);
   }
 
   applyHands(vrm: VRM, hands: { left: any, right: any }) {
@@ -340,9 +373,12 @@ class VRMService {
     this.silhouetteR.visible = true;
 
     // ターゲットポーズを取らせる
-    if (marker.targetPoseVectors) {
-      this.applyVectorPose(this.silhouetteL, marker.targetPoseVectors, 1.0);
-      this.applyVectorPose(this.silhouetteR, marker.targetPoseVectors, 1.0);
+    if (data.marker.targetEulerPose) {
+      this.applyEulerPose(this.silhouetteL, data.marker.targetEulerPose, lerpAmount);
+      this.applyEulerPose(this.silhouetteR, data.marker.targetEulerPose, lerpAmount);
+    } else if (data.marker.targetPoseVectors) {
+      this.applyVectorPose(this.silhouetteL, data.marker.targetPoseVectors, lerpAmount);
+      this.applyVectorPose(this.silhouetteR, data.marker.targetPoseVectors, lerpAmount);
     }
 
     const eased = 1 - Math.pow(1 - progress, 4);

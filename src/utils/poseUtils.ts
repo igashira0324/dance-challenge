@@ -1,7 +1,9 @@
 /**
  * Vector3 definition and Math utilities
  */
+import * as THREE from 'three';
 import { MarkerTarget } from '../constants';
+import { EulerPose } from '../constants/poses';
 
 export interface Vector3 {
   x: number;
@@ -111,6 +113,45 @@ export function calculatePoseSimilarity(user: PoseFeatures, target: PoseFeatures
   return count > 0 ? scoreSum / count : 0;
 }
 
+/**
+ * EulerPoseをPoseFeatures(単位ベクトル群)に変換する
+ */
+export function eulerPoseToFeatures(pose: EulerPose): PoseFeatures {
+  const features: PoseFeatures = {};
+  const RIGHT_REST = new THREE.Vector3(-1, 0, 0); 
+  const LEFT_REST  = new THREE.Vector3( 1, 0, 0);
+
+  const cvt = (rot: {x:number, y:number, z:number}, rest: THREE.Vector3) => {
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rot.x, rot.y, rot.z));
+    const v = rest.clone().applyQuaternion(q);
+    return { x: v.x, y: v.y, z: v.z };
+  };
+
+  if (pose.RightUpperArm) features.rightUpperArm = cvt(pose.RightUpperArm, RIGHT_REST);
+  if (pose.LeftUpperArm)  features.leftUpperArm  = cvt(pose.LeftUpperArm, LEFT_REST);
+  
+  if (pose.RightLowerArm && pose.RightUpperArm) {
+     const qU = new THREE.Quaternion().setFromEuler(new THREE.Euler(pose.RightUpperArm.x, pose.RightUpperArm.y, pose.RightUpperArm.z));
+     const qL = new THREE.Quaternion().setFromEuler(new THREE.Euler(pose.RightLowerArm.x, pose.RightLowerArm.y, pose.RightLowerArm.z));
+     // VRMの構造上、LowerはUpperの子。世界座標系（体座標系）での向きは積で表される
+     const v = RIGHT_REST.clone().applyQuaternion(qU).applyQuaternion(qL);
+     features.rightLowerArm = { x: v.x, y: v.y, z: v.z };
+  } else if (pose.RightLowerArm) {
+     features.rightLowerArm = cvt(pose.RightLowerArm, RIGHT_REST);
+  }
+
+  if (pose.LeftLowerArm && pose.LeftUpperArm) {
+     const qU = new THREE.Quaternion().setFromEuler(new THREE.Euler(pose.LeftUpperArm.x, pose.LeftUpperArm.y, pose.LeftUpperArm.z));
+     const qL = new THREE.Quaternion().setFromEuler(new THREE.Euler(pose.LeftLowerArm.x, pose.LeftLowerArm.y, pose.LeftLowerArm.z));
+     const v = LEFT_REST.clone().applyQuaternion(qU).applyQuaternion(qL);
+     features.leftLowerArm = { x: v.x, y: v.y, z: v.z };
+  } else if (pose.LeftLowerArm) {
+     features.leftLowerArm = cvt(pose.LeftLowerArm, LEFT_REST);
+  }
+
+  return features;
+}
+
 export function checkPoseMatch(
   worldLandmarks: any[], 
   imageLandmarks: any[], 
@@ -121,7 +162,14 @@ export function checkPoseMatch(
 
   // --- Silhouette Pose Matching (3D Vector Basis) ---
   if (target.type === 'Silhouette') {
-    if (!target.targetPoseVectors) return { result: 'MISS', similarity: 0 };
+    let targetFeatures = target.targetPoseVectors;
+    
+    // EulerPoseがある場合は優先的に変換して使用
+    if (target.targetEulerPose) {
+      targetFeatures = eulerPoseToFeatures(target.targetEulerPose);
+    }
+
+    if (!targetFeatures) return { result: 'MISS', similarity: 0 };
     
     const correctedLandmarks = worldLandmarks.map(lm => ({
       ...lm,

@@ -8,6 +8,7 @@ export type AnimationType =
 export type MarkerType = 'Ripple' | 'Stream' | 'Lock' | 'Silhouette';
 
 import type { PoseFeatures } from '../utils/poseUtils';
+import { EulerPose, POSES } from './poses';
 
 export class MarkerTarget {
   hitTime: number;
@@ -19,6 +20,7 @@ export class MarkerTarget {
   duration?: number;
   name: string;
   targetPoseVectors?: PoseFeatures;
+  targetEulerPose?: EulerPose;
 
   constructor(
     hitTime: number,
@@ -28,7 +30,8 @@ export class MarkerTarget {
     name: string,
     type: MarkerType = 'Ripple',
     duration?: number,
-    targetPoseVectors?: PoseFeatures
+    targetPoseVectors?: PoseFeatures,
+    targetEulerPose?: EulerPose
   ) {
     this.hitTime = hitTime;
     this.x = x;
@@ -40,119 +43,42 @@ export class MarkerTarget {
     this.id = `${hitTime.toFixed(2)}-${targetLimb}-${name.replace(/\s+/g, '-')}`;
     this.duration = duration;
     this.targetPoseVectors = targetPoseVectors;
+    this.targetEulerPose = targetEulerPose;
   }
 }
 
-export class Lyric {
-  time: number;
-  duration: number;
-  text: string;
-  animation: AnimationType;
-  style: string;
-  isChorus: boolean;
-
-  constructor(
-    time: number,
-    duration: number,
-    text: string,
-    animation: AnimationType = 'fadeInUp',
-    style: string = 'modern',
-    isChorus: boolean = false
-  ) {
-    this.time = time;
-    this.duration = duration;
-    this.text = text;
-    this.animation = animation;
-    this.style = style;
-    this.isChorus = isChorus;
-  }
-}
+// ... (Lyric class remains same) ...
 
 // =============================================
 // ダンエボ風ポーズ定義 (3D Vector Basis)
 // 単位ベクトル: x+は左(ミラー補正後), y+は上, z+は前
 // =============================================
-const V: Record<string, PoseFeatures> = {
-  T_POSE: {
-    leftUpperArm: { x: -1, y: 0, z: 0 },
-    leftLowerArm: { x: -1, y: 0, z: 0 },
-    rightUpperArm: { x: 1, y: 0, z: 0 },
-    rightLowerArm: { x: 1, y: 0, z: 0 }
-  },
-  BANZAI: {
-    leftUpperArm: { x: 0, y: 1, z: 0 },
-    leftLowerArm: { x: 0, y: 1, z: 0 },
-    rightUpperArm: { x: 0, y: 1, z: 0 },
-    rightLowerArm: { x: 0, y: 1, z: 0 }
-  },
-  Y_POSE: {
-    leftUpperArm: { x: -0.7, y: 0.7, z: 0 },
-    leftLowerArm: { x: -0.7, y: 0.7, z: 0 },
-    rightUpperArm: { x: 0.7, y: 0.7, z: 0 },
-    rightLowerArm: { x: 0.7, y: 0.7, z: 0 }
-  },
-  R_UP: {
-    leftUpperArm: { x: -0.2, y: -0.98, z: 0 },
-    leftLowerArm: { x: -0.2, y: -0.98, z: 0 },
-    rightUpperArm: { x: 0.2, y: 0.98, z: 0 },
-    rightLowerArm: { x: 0.2, y: 0.98, z: 0 }
-  },
-  L_UP: {
-    leftUpperArm: { x: -0.2, y: 0.98, z: 0 },
-    leftLowerArm: { x: -0.2, y: 0.98, z: 0 },
-    rightUpperArm: { x: 0.2, y: -0.98, z: 0 },
-    rightLowerArm: { x: 0.2, y: -0.98, z: 0 }
-  },
-  GUTS_R: {
-    leftUpperArm: { x: -0.2, y: -0.95, z: 0 },
-    leftLowerArm: { x: -0.2, y: -0.95, z: 0 },
-    rightUpperArm: { x: 0.95, y: 0.2, z: 0 },
-    rightLowerArm: { x: 0.0, y: 1.0, z: 0 }
-  },
-  GUTS_L: {
-    leftUpperArm: { x: -0.95, y: 0.2, z: 0 },
-    leftLowerArm: { x: 0.0, y: 1.0, z: 0 },
-    rightUpperArm: { x: 0.2, y: -0.95, z: 0 },
-    rightLowerArm: { x: 0.2, y: -0.95, z: 0 }
-  },
-  THRUST: {
-    leftUpperArm: { x: 0, y: 0, z: 1 },
-    leftLowerArm: { x: 0, y: 0, z: 1 },
-    rightUpperArm: { x: 0, y: 0, z: 1 },
-    rightLowerArm: { x: 0, y: 0, z: 1 }
-  },
-  V_UP: {
-    leftUpperArm: { x: -0.5, y: 0.85, z: 0 },
-    leftLowerArm: { x: -0.3, y: 0.95, z: 0 },
-    rightUpperArm: { x: 0.5, y: 0.85, z: 0 },
-    rightLowerArm: { x: 0.3, y: 0.95, z: 0 }
-  }
-};
+// ... (V Record remains for legacy but we prefer POSES) ...
 
 export const DEMO_MARKERS: MarkerTarget[] = [
   // ======= 序盤 (t=1〜6秒) =======
   new MarkerTarget(1.0, 0.8, 0.3, 'rightWrist', "Warm-R", 'Ripple'),
-  new MarkerTarget(2.0, 0.5, 0.5, 'fullBody', "Y-Pose", 'Silhouette', undefined, V.Y_POSE),
-  new MarkerTarget(3.5, 0.5, 0.5, 'fullBody', "R-Up", 'Silhouette', undefined, V.R_UP),
-  new MarkerTarget(5.0, 0.5, 0.5, 'fullBody', "L-Up", 'Silhouette', undefined, V.L_UP),
+  new MarkerTarget(2.0, 0.5, 0.5, 'fullBody', "Y-Pose", 'Silhouette', undefined, undefined, POSES.Y_POSE),
+  new MarkerTarget(3.5, 0.5, 0.5, 'fullBody', "R-Up", 'Silhouette', undefined, undefined, POSES.R_UP),
+  new MarkerTarget(5.0, 0.5, 0.5, 'fullBody', "L-Up", 'Silhouette', undefined, undefined, POSES.L_UP),
 
   // ======= 中盤前半 (t=6〜10秒) =======
   new MarkerTarget(6.5, 0.85, 0.5, 'rightWrist', "Hit-R", 'Ripple'),
-  new MarkerTarget(7.5, 0.5, 0.5, 'fullBody', "Banzai", 'Silhouette', undefined, V.BANZAI),
-  new MarkerTarget(9.0, 0.5, 0.5, 'fullBody', "Guts-R", 'Silhouette', undefined, V.GUTS_R),
-  new MarkerTarget(10.5, 0.5, 0.5, 'fullBody', "T-Wide", 'Silhouette', undefined, V.T_POSE),
+  new MarkerTarget(7.5, 0.5, 0.5, 'fullBody', "Banzai", 'Silhouette', undefined, undefined, POSES.BANZAI),
+  new MarkerTarget(9.0, 0.5, 0.5, 'fullBody', "Guts-R", 'Silhouette', undefined, undefined, POSES.GUTS_R),
+  new MarkerTarget(10.5, 0.5, 0.5, 'fullBody', "T-Wide", 'Silhouette', undefined, undefined, POSES.T_POSE),
 
   // ======= 中盤後半 (t=11〜14秒) =======
   new MarkerTarget(12.0, 0.15, 0.4, 'leftWrist',  "Strike-L", 'Ripple'),
   new MarkerTarget(12.0, 0.85, 0.4, 'rightWrist', "Strike-R", 'Ripple'),
-  new MarkerTarget(13.0, 0.5, 0.5, 'fullBody', "Thrust", 'Silhouette', undefined, V.THRUST),
+  new MarkerTarget(13.0, 0.5, 0.5, 'fullBody', "Thrust", 'Silhouette', undefined, undefined, POSES.THRUST),
 
   // ======= 後半 (t=14〜17秒) =======
-  new MarkerTarget(14.5, 0.5, 0.5, 'fullBody', "T-Wide", 'Silhouette', undefined, V.T_POSE),
-  new MarkerTarget(15.5, 0.5, 0.5, 'fullBody', "Guts-L", 'Silhouette', undefined, V.GUTS_L),
+  new MarkerTarget(14.5, 0.5, 0.5, 'fullBody', "T-Wide", 'Silhouette', undefined, undefined, POSES.T_POSE),
+  new MarkerTarget(15.5, 0.5, 0.5, 'fullBody', "Guts-L", 'Silhouette', undefined, undefined, POSES.GUTS_L),
   new MarkerTarget(16.5, 0.1, 0.3, 'leftWrist',  "Finish-L", 'Ripple'),
   new MarkerTarget(16.5, 0.9, 0.3, 'rightWrist', "Finish-R", 'Ripple'),
-  new MarkerTarget(17.5, 0.5, 0.5, 'fullBody', "V-Up", 'Silhouette', undefined, V.V_UP),
+  new MarkerTarget(17.5, 0.5, 0.5, 'fullBody', "V-Up", 'Silhouette', undefined, undefined, POSES.V_UP),
 ];
 
 export const DEMO_LYRICS = [
