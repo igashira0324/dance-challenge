@@ -3,7 +3,7 @@ import { VRM } from '@pixiv/three-vrm';
 import { Pose, Hand } from 'kalidokit';
 import { poseService } from '../services/poseService';
 import { vrmService } from '../services/vrmService';
-import { Camera, Download, RefreshCw, X, Move, RotateCw, Maximize, Upload } from 'lucide-react';
+import { Camera, Download, RefreshCw, X, Move, RotateCw, Maximize, Upload, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Props {
@@ -13,8 +13,7 @@ interface Props {
 }
 
 // Built-in models are now excluded from the repository. 
-// Please place your VRM files in /public and add them here if you wish to use them as presets.
-const BUILTIN_MODELS: any[] = [];
+// Please upload your own VRM files via the UI or place them in /public.
 
 const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -308,15 +307,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
     ctx.fillText(dateStr, w - 40 * fontScale, h - 40 * fontScale);
 
     // Bottom-left: Credits
-    const selectedBuiltin = BUILTIN_MODELS.find(m => m.id === modelId);
-    let creditText = '';
-    if (selectedBuiltin) {
-      if (selectedBuiltin.author !== 'Unknown') {
-        creditText = `Model Author: ${selectedBuiltin.author}`;
-      }
-    } else {
-      creditText = `Model: Custom VRM`;
-    }
+    let creditText = modelId ? `Model: ${modelId}` : 'Model: Custom VRM';
 
     if (creditText) {
       ctx.textAlign = 'left';
@@ -435,6 +426,11 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
             <p className={`text-[9px] mt-3 font-mono px-2 py-1 rounded bg-black/40 ${status.startsWith('ERROR') ? 'text-rose-400' : 'text-cyan-400'}`}>
               STATUS: {status}
             </p>
+            {selectedModel && (
+              <p className="text-[9px] mt-1 font-mono px-2 py-1 rounded bg-white/5 text-gray-300 flex items-center gap-2">
+                <User size={10} className="text-cyan-400" /> LOADED: {selectedModel}
+              </p>
+            )}
             <div className="flex flex-col gap-1 mt-4 text-[9px] font-mono opacity-80">
               <div className="flex items-center gap-1"><Move size={10} /> Drag: 位置移動</div>
               <div className="flex items-center gap-1"><RotateCw size={10} /> Shift+Drag: 横回転</div>

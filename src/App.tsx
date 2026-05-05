@@ -220,7 +220,8 @@ const App = () => {
 
               <button
                 onClick={() => setGameState('MOCAP')}
-                className="w-full py-3 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 font-bold rounded-2xl border border-cyan-400/20 text-xs tracking-[0.2em] transition-all"
+                disabled={!vrm}
+                className="w-full py-3 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 font-bold rounded-2xl border border-cyan-400/20 text-xs tracking-[0.2em] transition-all disabled:opacity-20 disabled:grayscale"
               >
                 🔬 MOCAP TEST MODE
               </button>
