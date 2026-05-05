@@ -113,7 +113,7 @@ export const HUD: React.FC<Props> = ({ score, combo, currentTime, upcomingMarker
       {/* Spatial Markers (Ripple type) */}
       <div className="absolute inset-0 pointer-events-none z-10">
         <AnimatePresence>
-          {upcomingMarkers.map((marker, i) => {
+          {upcomingMarkers.map((marker) => {
             if (marker.type === 'Silhouette') return null;
             return <RippleMarker key={marker.id} marker={marker} currentTime={currentTime} />;
           })}

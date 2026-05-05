@@ -2,16 +2,8 @@
  * Vector3 definition and Math utilities
  */
 import * as THREE from 'three';
-import { MarkerTarget } from '../constants';
-import { EulerPose } from '../constants/poses';
-
-export interface Vector3 {
-  x: number;
-  y: number;
-  z: number;
-}
-
-export type PoseFeatures = Record<string, Vector3>;
+import type { Vector3, PoseFeatures, MarkerTarget } from '../types/game';
+import type { EulerPose } from '../constants/poses';
 
 function sub(a: Vector3, b: Vector3): Vector3 {
   return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
@@ -40,12 +32,10 @@ function mid(a: Vector3, b: Vector3): Vector3 {
 
 /**
  * 体ローカル座標系（Basis）を構築する
- * Up: 腰中点 -> 肩中点
- * Right: 肩間 (Upと直交化)
- * Forward: Up cross Right
  */
 export function buildBodyFrame(landmarks: any[]) {
   const ls = landmarks[11], rs = landmarks[12], lh = landmarks[23], rh = landmarks[24];
+  if (!ls || !rs || !lh || !rh) return null;
   const shoulderMid = mid(ls, rs);
   const hipMid = mid(lh, rh);
   
@@ -75,6 +65,7 @@ export function extractPoseFeatures(landmarks: any[]): PoseFeatures | null {
   if (!landmarks || landmarks.length < 25) return null;
 
   const frame = buildBodyFrame(landmarks);
+  if (!frame) return null;
   const { basis } = frame;
 
   // 各セグメントのベクトル（ワールド）
@@ -95,7 +86,7 @@ export function extractPoseFeatures(landmarks: any[]): PoseFeatures | null {
 }
 
 /**
- * 2つのポーズ特徴の類似度を計算する (1.0 = 完全一致, 0.0 = 垂直, -1.0 = 反転)
+ * 2つのポーズ特徴の類似度を計算する
  */
 export function calculatePoseSimilarity(user: PoseFeatures, target: PoseFeatures): number {
   let scoreSum = 0;
@@ -104,7 +95,6 @@ export function calculatePoseSimilarity(user: PoseFeatures, target: PoseFeatures
   for (const key in target) {
     if (user[key] && target[key]) {
       const s = dot(user[key], target[key]);
-      // 0.0〜1.0 にクランプ（逆方向は 0 扱い）
       scoreSum += Math.max(0, s);
       count++;
     }
@@ -133,7 +123,6 @@ export function eulerPoseToFeatures(pose: EulerPose): PoseFeatures {
   if (pose.RightLowerArm && pose.RightUpperArm) {
      const qU = new THREE.Quaternion().setFromEuler(new THREE.Euler(pose.RightUpperArm.x, pose.RightUpperArm.y, pose.RightUpperArm.z));
      const qL = new THREE.Quaternion().setFromEuler(new THREE.Euler(pose.RightLowerArm.x, pose.RightLowerArm.y, pose.RightLowerArm.z));
-     // VRMの構造上、LowerはUpperの子。世界座標系（体座標系）での向きは積で表される
      const v = RIGHT_REST.clone().applyQuaternion(qU).applyQuaternion(qL);
      features.rightLowerArm = { x: v.x, y: v.y, z: v.z };
   } else if (pose.RightLowerArm) {
@@ -160,52 +149,36 @@ export function checkPoseMatch(
 ): { result: 'PERFECT' | 'GOOD' | 'MISS', similarity: number } {
   if (!worldLandmarks || worldLandmarks.length === 0) return { result: 'MISS', similarity: 0 };
 
-  // --- Silhouette Pose Matching (3D Vector Basis) ---
   if (target.type === 'Silhouette') {
     let targetFeatures = target.targetPoseVectors;
-    
-    // EulerPoseがある場合は優先的に変換して使用
     if (target.targetEulerPose) {
       targetFeatures = eulerPoseToFeatures(target.targetEulerPose);
     }
 
     if (!targetFeatures) return { result: 'MISS', similarity: 0 };
     
-    const correctedLandmarks = worldLandmarks.map(lm => ({
-      ...lm,
-      x: -lm.x 
-    }));
-
+    const correctedLandmarks = worldLandmarks.map(lm => ({ ...lm, x: -lm.x }));
     const userFeatures = extractPoseFeatures(correctedLandmarks);
     if (!userFeatures) return { result: 'MISS', similarity: 0 };
 
-    const similarity = calculatePoseSimilarity(userFeatures, target.targetPoseVectors);
+    const similarity = calculatePoseSimilarity(userFeatures, targetFeatures);
     
-    // ダンエボ風しきい値調整
     if (similarity > 0.86) return { result: 'PERFECT', similarity }; 
     if (similarity > 0.65) return { result: 'GOOD', similarity };
     return { result: 'MISS', similarity };
   }
 
-  // --- Ripple Hand Matching (2D Screen Basis) ---
   if (target.type === 'Ripple') {
     if (!imageLandmarks || imageLandmarks.length === 0) return { result: 'MISS', similarity: 0 };
-
-    const correctedLandmarks = imageLandmarks.map(lm => ({
-      ...lm,
-      x: 1.0 - lm.x 
-    }));
-
+    const correctedLandmarks = imageLandmarks.map(lm => ({ ...lm, x: 1.0 - lm.x }));
     const leftWrist = correctedLandmarks[15] ?? correctedLandmarks[13];
     const rightWrist = correctedLandmarks[16] ?? correctedLandmarks[14];
     const hand = target.targetLimb === 'leftWrist' ? leftWrist : rightWrist;
 
     if (hand) {
-      // アスペクト比を考慮して距離を計算 (横長の歪みを補正)
       const dx = (hand.x - target.x) * videoAspectRatio;
       const dy = (hand.y - target.y);
       const dist = Math.sqrt(dx * dx + dy * dy);
-
       if (dist < 0.12) return { result: 'PERFECT', similarity: 1.0 - dist };
       if (dist < 0.22) return { result: 'GOOD', similarity: 1.0 - dist };
     }

@@ -4,12 +4,13 @@ import { audioEngine } from '../services/audioEngine';
 import { vrmService } from '../services/vrmService';
 import { poseService } from '../services/poseService';
 import { checkPoseMatch } from '../utils/poseUtils';
+import { Face } from 'kalidokit';
+import type { MarkerTarget } from '../types/game';
 import { VRM } from '@pixiv/three-vrm';
-import { MarkerTarget, DEMO_MARKERS } from '../constants';
 
 interface GameLoopProps {
-  gameState: 'IDLE' | 'PLAYING' | 'RESULT';
-  setGameState: (s: 'IDLE' | 'PLAYING' | 'RESULT') => void;
+  gameState: 'IDLE' | 'PLAYING' | 'RESULT' | 'MOCAP';
+  setGameState: (s: 'IDLE' | 'PLAYING' | 'RESULT' | 'MOCAP') => void;
   vrm: VRM | null;
   updatePose: (world: any, landmarks: any) => void;
   evaluateMarker: (target: MarkerTarget, result: 'PERFECT' | 'GOOD' | 'MISS', bonus: number) => void;
@@ -19,7 +20,7 @@ interface GameLoopProps {
   bestTimingRef: React.MutableRefObject<Map<string, number>>;
   worldLandmarksRef: React.MutableRefObject<any[]>;
   imageLandmarksRef: React.MutableRefObject<any[]>;
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
 }
 
 export const useGameLoop = ({
@@ -38,9 +39,6 @@ export const useGameLoop = ({
 }: GameLoopProps) => {
   const requestRef = useRef<number>(null);
   const currentTimeMotion = useMotionValue(0);
-  
-  // UI更新頻度を下げるためのタイムスタンプ
-  const lastUIUpdateTimeRef = useRef(0);
 
   const animate = useCallback((time: number) => {
     if (gameState === 'PLAYING') {
@@ -57,6 +55,20 @@ export const useGameLoop = ({
           worldLandmarksRef.current = results.worldLandmarks[0];
           imageLandmarksRef.current = results.landmarks[0];
           updatePose(results.worldLandmarks[0], results.landmarks[0]);
+        }
+
+        // --- 2b. 顔検出 (表情: まばたき等) ---
+        if (vrm) {
+          const faceResult = poseService.detectFace(videoRef.current, time);
+          if (faceResult && faceResult.faceLandmarks?.[0]) {
+            const solvedFace = (Face as any).solve(faceResult.faceLandmarks[0], {
+              runtime: 'mediapipe',
+              video: videoRef.current
+            });
+            if (solvedFace) {
+              vrmService.applyFace(vrm, solvedFace);
+            }
+          }
         }
       }
 

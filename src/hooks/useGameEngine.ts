@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
 import { MarkerTarget, DEMO_MARKERS } from '../constants';
-import { audioEngine } from '../services/audioEngine';
 import confetti from 'canvas-confetti';
 
 export const useGameEngine = () => {

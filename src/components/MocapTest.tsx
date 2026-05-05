@@ -92,7 +92,7 @@ const MocapTest = ({ vrm, onExit }: Props) => {
                 ctx.beginPath(); ctx.arc(lm.x * canvas.width, lm.y * canvas.height, 1, 0, Math.PI * 2); ctx.fill();
               }
               const solvedFace = (Face as any).solve(faceResult.faceLandmarks[0], { runtime: 'mediapipe', video: v });
-              if (solvedFace) vrmService.applyFace(vrm, solvedFace);
+              if (solvedFace && vrm) vrmService.applyFace(vrm, solvedFace);
             }
 
             // Hands (Yellow/Pink)
@@ -100,7 +100,7 @@ const MocapTest = ({ vrm, onExit }: Props) => {
             if (handResult && handResult.landmarks) {
               const hands: { left: any, right: any } = { left: null, right: null };
               handResult.landmarks.forEach((handLM, idx) => {
-                const isLeft = handResult.handedness[idx][0].label === 'Left';
+                const isLeft = handResult.handedness[idx][0].categoryName === 'Left';
                 ctx.fillStyle = isLeft ? '#ff00ff' : '#ffff00';
                 ctx.strokeStyle = ctx.fillStyle;
                 handLM.forEach(lm => {
@@ -109,7 +109,7 @@ const MocapTest = ({ vrm, onExit }: Props) => {
                 const solvedHand = (Hand as any).solve(handLM, isLeft ? 'Left' : 'Right');
                 if (isLeft) hands.left = solvedHand; else hands.right = solvedHand;
               });
-              vrmService.applyHands(vrm, hands);
+              if (vrm) vrmService.applyHands(vrm, hands);
             }
 
             // ====== ② Kalidokit で VRM を駆動 (Pose) ======

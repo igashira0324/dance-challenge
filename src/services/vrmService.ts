@@ -3,7 +3,8 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRM } from '@pixiv/three-vrm';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import type { PoseFeatures } from '../utils/poseUtils';
+import type { MarkerTarget, PoseFeatures } from '../types/game';
+import type { EulerPose } from '../constants/poses';
 
 class VRMService {
   private loader: GLTFLoader;
@@ -22,6 +23,7 @@ class VRMService {
   private silhouetteRBones = new Map<string, THREE.Object3D>();
 
   private currentLoadId = 0;
+  private _eulerPoseDebugDone = false;
 
   constructor() {
     this.loader = new GLTFLoader();
@@ -109,7 +111,12 @@ class VRMService {
     ];
     for (const name of HUMANOID_BONES) {
       const node = vrm.humanoid.getNormalizedBoneNode(name as any);
-      if (node) this.humanoidBoneNameMap.set(name, node.name);
+      if (node) {
+        this.humanoidBoneNameMap.set(name, node.name);
+        console.log(`[VRM] Bone mapping: ${name} -> ${node.name}`);
+      } else {
+        console.warn(`[VRM] Bone NOT FOUND: ${name}`);
+      }
     }
 
     // クローンを作成
@@ -120,6 +127,15 @@ class VRMService {
     this.silhouetteRBones.clear();
     this.silhouetteL.traverse(obj => this.silhouetteLBones.set(obj.name, obj));
     this.silhouetteR.traverse(obj => this.silhouetteRBones.set(obj.name, obj));
+
+    // Debug: verify silhouette bone lookup
+    console.log(`[VRM] Silhouette L bones count: ${this.silhouetteLBones.size}`);
+    for (const [humanoidName, threeName] of this.humanoidBoneNameMap.entries()) {
+      const found = this.silhouetteLBones.has(threeName);
+      if (!found) {
+        console.warn(`[VRM] Silhouette L missing bone: ${humanoidName} -> ${threeName}`);
+      }
+    }
 
     this._applySilhouetteMaterial(this.silhouetteL);
     this._applySilhouetteMaterial(this.silhouetteR);
@@ -211,10 +227,12 @@ class VRMService {
     };
 
     // Blink - Kalidokit face.eye.l/r ranges from 0 (open) to 1 (closed)
-    // The user reported eyes staying closed. Increasing threshold to be more conservative.
+    // The user reports eyes staying closed, so we use a very high threshold:
+    // Only values above 0.7 trigger any blink at all. This means eyes are open
+    // in the vast majority of frames.
     if (face.eye) {
-      const blinkThreshold = 0.6;  // Higher threshold to ensure eyes stay open unless clearly closed
-      const blinkScale = 1.0 / (1.0 - blinkThreshold);
+      const blinkThreshold = 0.7;
+      const blinkScale = 1.0 / (1.0 - blinkThreshold); // = 3.33
       const adjustBlink = (val: number) => Math.max(0, (val - blinkThreshold) * blinkScale);
 
       s('blinkLeft', adjustBlink(face.eye.l ?? 0));
@@ -231,10 +249,17 @@ class VRMService {
     }
   }
 
-  applyEulerPose(target: VRM | THREE.Group, pose: any, lerpAmount = 1.0) {
+  /**
+   * Apply an Euler-angle based pose to a VRM model or a cloned silhouette group.
+   * For silhouettes, we use direct quaternion.copy() instead of slerp for instant application.
+   */
+  applyEulerPose(target: VRM | THREE.Group, pose: EulerPose, lerpAmount = 1.0) {
     const isVrm = (target as any).humanoid !== undefined;
     const bones = target === this.silhouetteL ? this.silhouetteLBones :
                   target === this.silhouetteR ? this.silhouetteRBones : null;
+
+    let applied = 0;
+    let missed = 0;
 
     const set = (humanoidName: string, rot: {x:number,y:number,z:number}) => {
       let bone: THREE.Object3D | null = null;
@@ -242,11 +267,22 @@ class VRMService {
         bone = (target as VRM).humanoid.getNormalizedBoneNode(humanoidName as any);
       } else {
         const threeName = this.humanoidBoneNameMap.get(humanoidName);
-        if (threeName && bones) bone = bones.get(threeName) || null;
+        if (threeName && bones) {
+          bone = bones.get(threeName) || null;
+        }
       }
-      if (!bone) return;
+      if (!bone) {
+        missed++;
+        return;
+      }
+      applied++;
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rot.x, rot.y, rot.z));
-      bone.quaternion.slerp(q, lerpAmount);
+      // For silhouettes, directly copy the quaternion for instant pose application
+      if (!isVrm) {
+        bone.quaternion.copy(q);
+      } else {
+        bone.quaternion.slerp(q, lerpAmount);
+      }
     };
 
     if (pose.RightUpperArm) set('rightUpperArm', pose.RightUpperArm);
@@ -259,6 +295,19 @@ class VRMService {
     if (pose.LeftLowerLeg)  set('leftLowerLeg',  pose.LeftLowerLeg);
     if (pose.Spine)         set('spine',         pose.Spine);
     if (pose.Hips?.rotation) set('hips',         pose.Hips.rotation);
+
+    // Debug log on first call to verify bone resolution
+    if (!this._eulerPoseDebugDone) {
+      this._eulerPoseDebugDone = true;
+      console.log(`[applyEulerPose] isVrm=${isVrm}, applied=${applied}, missed=${missed}, pose keys=${Object.keys(pose).join(',')}`);
+      if (missed > 0) {
+        console.warn(`[applyEulerPose] ${missed} bones not found! Check humanoidBoneNameMap.`);
+        console.log('[applyEulerPose] Available bone map:', Object.fromEntries(this.humanoidBoneNameMap));
+        if (bones) {
+          console.log('[applyEulerPose] Available silhouette bones:', [...bones.keys()].slice(0, 20));
+        }
+      }
+    }
   }
 
   applyHands(vrm: VRM, hands: { left: any, right: any }) {
@@ -352,7 +401,7 @@ class VRMService {
   /**
    * シルエットの位置や不透明度を更新する (ダンエボ高速版)
    */
-  updateSilhouettes(activeSilhouette: { marker: any; timeToHit: number } | null) {
+  updateSilhouettes(activeSilhouette: { marker: MarkerTarget; timeToHit: number } | null) {
     if (!this.silhouetteL || !this.silhouetteR) return;
 
     if (!activeSilhouette) {
@@ -373,12 +422,12 @@ class VRMService {
     this.silhouetteR.visible = true;
 
     // ターゲットポーズを取らせる
-    if (data.marker.targetEulerPose) {
-      this.applyEulerPose(this.silhouetteL, data.marker.targetEulerPose, lerpAmount);
-      this.applyEulerPose(this.silhouetteR, data.marker.targetEulerPose, lerpAmount);
-    } else if (data.marker.targetPoseVectors) {
-      this.applyVectorPose(this.silhouetteL, data.marker.targetPoseVectors, lerpAmount);
-      this.applyVectorPose(this.silhouetteR, data.marker.targetPoseVectors, lerpAmount);
+    if (marker.targetEulerPose) {
+      this.applyEulerPose(this.silhouetteL, marker.targetEulerPose, 1.0);
+      this.applyEulerPose(this.silhouetteR, marker.targetEulerPose, 1.0);
+    } else if (marker.targetPoseVectors) {
+      this.applyVectorPose(this.silhouetteL, marker.targetPoseVectors, 1.0);
+      this.applyVectorPose(this.silhouetteR, marker.targetPoseVectors, 1.0);
     }
 
     const eased = 1 - Math.pow(1 - progress, 4);
@@ -426,4 +475,3 @@ class VRMService {
 }
 
 export const vrmService = new VRMService();
-

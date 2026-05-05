@@ -1,59 +1,10 @@
+import { MarkerTarget, Lyric } from '../types/game';
+import type { AnimationType } from '../types/game';
+export { MarkerTarget, Lyric };
+export type { AnimationType };
+import { POSES } from './poses';
+
 export const BPM = 120;
-
-export type AnimationType = 
-| 'fadeIn' | 'fadeInUp' | 'fadeInDown' | 'bounceIn' 
-| 'scaleUp' | 'slideFromLeft' | 'slideFromRight' 
-| 'typewriter' | 'wave' | 'glitch' | 'explode';
-
-export type MarkerType = 'Ripple' | 'Stream' | 'Lock' | 'Silhouette';
-
-import type { PoseFeatures } from '../utils/poseUtils';
-import { EulerPose, POSES } from './poses';
-
-export class MarkerTarget {
-  hitTime: number;
-  x: number; // 0.0 to 1.0 (normalized screen x)
-  y: number; // 0.0 to 1.0 (normalized screen y)
-  targetLimb: 'leftWrist' | 'rightWrist' | 'fullBody';
-  type: MarkerType;
-  id: string; // Unique string ID
-  duration?: number;
-  name: string;
-  targetPoseVectors?: PoseFeatures;
-  targetEulerPose?: EulerPose;
-
-  constructor(
-    hitTime: number,
-    x: number,
-    y: number,
-    targetLimb: 'leftWrist' | 'rightWrist' | 'fullBody',
-    name: string,
-    type: MarkerType = 'Ripple',
-    duration?: number,
-    targetPoseVectors?: PoseFeatures,
-    targetEulerPose?: EulerPose
-  ) {
-    this.hitTime = hitTime;
-    this.x = x;
-    this.y = y;
-    this.targetLimb = targetLimb;
-    this.name = name;
-    this.type = type;
-    // Create unique ID using time, limb and name
-    this.id = `${hitTime.toFixed(2)}-${targetLimb}-${name.replace(/\s+/g, '-')}`;
-    this.duration = duration;
-    this.targetPoseVectors = targetPoseVectors;
-    this.targetEulerPose = targetEulerPose;
-  }
-}
-
-// ... (Lyric class remains same) ...
-
-// =============================================
-// ダンエボ風ポーズ定義 (3D Vector Basis)
-// 単位ベクトル: x+は左(ミラー補正後), y+は上, z+は前
-// =============================================
-// ... (V Record remains for legacy but we prefer POSES) ...
 
 export const DEMO_MARKERS: MarkerTarget[] = [
   // ======= 序盤 (t=1〜6秒) =======
@@ -95,4 +46,3 @@ export const DEMO_LYRICS = [
   new Lyric(15.5, 1.0, "GUTS LEFT!",     "bounceIn",      "neon"),
   new Lyric(17.5, 2.0, "PERFECT!!",      "explode",       "modern", true),
 ];
-
