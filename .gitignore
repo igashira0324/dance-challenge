@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 *.vrm
 public/*.vrm
+
+.photos

@@ -5,6 +5,7 @@ import { poseService } from '../services/poseService';
 import { vrmService } from '../services/vrmService';
 import { Camera, Download, RefreshCw, X, Move, RotateCw, Maximize, ChevronDown, User, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { QRCodeCanvas } from './QRCodeCanvas';
 import ModelSelector from './ModelSelector';
 import { BUILTIN_MODELS } from '../constants/models';
 import type { BuiltinModel } from '../constants/models';
@@ -34,6 +35,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   const idlePoseAppliedRef = useRef(false);
   const [isSharing, setIsSharing] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   const MIKU_COLOR = '#39C5BB';
 
@@ -300,13 +302,16 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
 
   const handleShare = async () => {
     if (!capturedImage) return;
+
     setIsSharing(true);
+    setShareError(null);
+
     try {
       const url = await uploadService.uploadImage(capturedImage);
       setShareUrl(url);
     } catch (e) {
       console.error('Share failed', e);
-      alert('アップロードに失敗しました。時間をおいて再度お試しください。');
+      setShareError('QR共有用の画像保存に失敗しました。PCとスマホが同じWi-Fiに接続されているか確認してください。');
     } finally {
       setIsSharing(false);
     }
@@ -504,15 +509,15 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
               <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: MIKU_COLOR }} />
               PHOTO BOOTH
             </h2>
-            <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] mt-1 font-bold">初音ミクと記念撮影！</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] mt-1 font-bold">初音ミクと記念撮影</p>
             <p className={`text-[9px] mt-3 font-mono px-2 py-1 rounded bg-black/40 ${status.startsWith('ERROR') ? 'text-rose-400' : 'text-cyan-400'}`}>
               STATUS: {status}
             </p>
             <div className="flex flex-col gap-2 mt-4 text-[11px] font-mono opacity-80">
-              <div className="flex items-center gap-2"><Move size={12} /> Drag: ミクを移動</div>
+              <div className="flex items-center gap-2"><Move size={12} /> Drag: 位置移動</div>
               <div className="flex items-center gap-2"><RotateCw size={12} /> Shift+Drag: 左右回転</div>
               <div className="flex items-center gap-2"><RotateCw size={12} /> Ctrl+Drag: 上下回転</div>
-              <div className="flex items-center gap-2"><Maximize size={12} /> Wheel: サイズ変更</div>
+              <div className="flex items-center gap-2"><Maximize size={12} /> Wheel: 拡大・縮小</div>
             </div>
             
             {/* Model selector */}
@@ -521,7 +526,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
                 onClick={() => setShowModelPanel(p => !p)}
                 className="w-full flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-widest text-cyan-300 hover:text-white transition-colors"
               >
-                <span className="flex items-center gap-1"><User size={10} /> モデル選択</span>
+                <span className="flex items-center gap-1"><User size={10} /> MODEL SELECT</span>
                 <ChevronDown size={10} className={`transition-transform ${showModelPanel ? 'rotate-180' : ''}`} />
               </button>
 
@@ -695,28 +700,28 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
                 <X className="w-6 h-6" />
               </button>
 
-              <h3 className="text-2xl font-bold text-white mb-2">QR Code</h3>
+              <h3 className="text-2xl font-bold text-white mb-2">QR SHARE</h3>
+
               <p className="text-white/60 mb-6 text-sm">
-                スマホのカメラで読み取って<br />
-                写真をダウンロードしてください
+                スマホで読み取ると写真をダウンロードできます。<br />
+                PCとスマホは同じWi-Fiに接続してください。
               </p>
 
-              <div className="bg-white p-6 rounded-3xl inline-block mb-6 shadow-2xl relative group">
-                {/* QR Code with High Precision (H) */}
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&ecc=H&margin=0&data=${encodeURIComponent(shareUrl)}`}
-                  alt="QR Code"
-                  className="w-[220px] h-[220px] block"
+              <div className="bg-white p-6 rounded-3xl inline-block mb-6 shadow-2xl relative overflow-hidden">
+                <QRCodeCanvas
+                  value={shareUrl}
+                  size={260}
+                  level="H"
+                  includeMargin={false}
+                  bgColor="#ffffff"
+                  fgColor="#000000"
+                  imageSettings={{
+                    src: '/Chibi-style_Hatsune_Miku_adorable_icon_illustratio-1777978579165.png',
+                    width: 52,
+                    height: 52,
+                    excavate: true,
+                  }}
                 />
-                
-                {/* Center Icon Overlay (Miku) */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white rounded-xl p-1 shadow-lg border border-gray-100 overflow-hidden">
-                  <img 
-                    src="/Chibi-style_Hatsune_Miku_adorable_icon_illustratio-1777978579165.png"
-                    alt="Miku Icon"
-                    className="w-full h-full object-contain rounded-lg"
-                  />
-                </div>
 
                 {/* Decorative scanning line effect */}
                 <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-3xl">
@@ -729,8 +734,14 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
               </div>
               
               <p className="text-white/30 text-[10px] mt-4 uppercase tracking-widest">
-                Expires in 24 hours
+                Local share / Expires in 24 hours
               </p>
+
+              {shareError && (
+                <p className="mt-4 text-sm text-rose-400 font-bold">
+                  {shareError}
+                </p>
+              )}
             </motion.div>
           </motion.div>
         )}
