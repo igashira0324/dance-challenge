@@ -13,49 +13,52 @@ import { MarkerTarget, Lyric, DEMO_MARKERS, DEMO_LYRICS } from './constants';
 import HUD from './components/HUD';
 import KineticTypography from './components/KineticTypography';
 
-import { extractKeyJointAngles, compareAngles } from './utils/poseUtils';
+import { 
+  extractPoseFeatures, 
+  calculatePoseSimilarity, 
+  PoseFeatures 
+} from './utils/poseUtils';
 
-const checkPoseMatch = (landmarks: any[], _latestPose: any, target: MarkerTarget): 'PERFECT' | 'GOOD' | 'MISS' => {
+const checkPoseMatch = (worldLandmarks: any[], target: MarkerTarget): 'PERFECT' | 'GOOD' | 'MISS' => {
+  if (!worldLandmarks || worldLandmarks.length === 0) return 'MISS';
+
+  // ミラー補正: ユーザーがカメラを鏡として見ているため、x軸を反転させて標準的な3D空間に戻す
+  const correctedLandmarks = worldLandmarks.map(lm => ({
+    ...lm,
+    x: -lm.x // MediaPipe worldLandmarks: x+ is right. If mirrored, flip it.
+  }));
+
   if (target.type === 'Silhouette') {
-    if (!landmarks || landmarks.length === 0 || !target.targetPoseAngles) return 'MISS';
+    if (!target.targetPoseVectors) return 'MISS';
     
-    const userAngles = extractKeyJointAngles(landmarks);
-    if (!userAngles) return 'MISS';
+    const userFeatures = extractPoseFeatures(correctedLandmarks);
+    if (!userFeatures) return 'MISS';
 
-    const diff = compareAngles(userAngles, target.targetPoseAngles);
+    const similarity = calculatePoseSimilarity(userFeatures, target.targetPoseVectors);
     
-    // Debug logging for developers
     if (import.meta.env.DEV) {
-       console.log(`[Pose: ${target.name}] Diff: ${diff.toFixed(3)}`);
+       // Similarity 1.0 = Perfect, 0.0 = Bad
+       // 以前の Diff (0.0=Perfect) と感覚を合わせるため 1.0 - similarity を表示
+       console.log(`[Pose: ${target.name}] Similarity: ${similarity.toFixed(3)} | Err: ${(1.0 - similarity).toFixed(3)}`);
     }
 
-    if (diff < 0.35) return 'PERFECT';
-    if (diff < 0.7) return 'GOOD';
+    if (similarity > 0.85) return 'PERFECT';
+    if (similarity > 0.65) return 'GOOD';
     return 'MISS';
   }
 
   // Ripple (spatial matching)
-  if (!landmarks || landmarks.length === 0) return 'MISS';
-  
-  const leftWrist = landmarks[15] ?? landmarks[13];
-  const rightWrist = landmarks[16] ?? landmarks[14];
+  const leftWrist = correctedLandmarks[15] ?? correctedLandmarks[13];
+  const rightWrist = correctedLandmarks[16] ?? correctedLandmarks[14];
 
   if (!leftWrist || !rightWrist) return 'MISS';
-
+  
   let wrist = target.targetLimb === 'leftWrist' ? leftWrist : rightWrist;
 
-  // ミラー補正 (カメラ映像が左右反転しているため、1.0 - x で補正)
-  const adjustedWristX = 1.0 - wrist.x;
-  const dx = adjustedWristX - target.x;
-  const dy = wrist.y - target.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-
-  const PERFECT_THRESH = 0.18; 
-  const GOOD_THRESH = 0.35; 
-
-  if (distance <= PERFECT_THRESH) return 'PERFECT';
-  if (distance <= GOOD_THRESH) return 'GOOD';
-  return 'MISS';
+  // Rippleは正規化座標(0-1)で定義されているため、worldLandmarks(meters)を簡易変換するか、
+  // あるいは landmarks (image space) を使うべき。
+  // ここでは精度のため image-space landmarks を後で渡すようにする。
+  return 'MISS'; // Placeholder - will fix in loop
 };
 
 const App = () => {
@@ -105,12 +108,18 @@ const App = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.key === 'c') {
-        const angles = extractKeyJointAngles(latestLandmarksRef.current);
-        if (angles) {
-          console.group("📸 Captured Pose Angles");
+        const worldLandmarks = latestLandmarksRef.current;
+        if (!worldLandmarks || worldLandmarks.length === 0) return;
+
+        // Capture時もミラー補正を適用して「標準ポーズ」として保存する
+        const corrected = worldLandmarks.map(lm => ({ ...lm, x: -lm.x }));
+        const features = extractPoseFeatures(corrected);
+
+        if (features) {
+          console.group("📸 Captured Pose Vectors (Metric)");
           console.log("Copy and paste this into constants/index.ts:");
-          console.log(JSON.stringify(angles, (key, value) => 
-            typeof value === 'number' ? parseFloat(value.toFixed(2)) : value, 2));
+          console.log("targetPoseVectors: " + JSON.stringify(features, (key, value) => 
+            typeof value === 'number' ? parseFloat(value.toFixed(3)) : value, 2));
           console.groupEnd();
           alert("Pose Captured! check console (F12) for the code.");
         }
@@ -164,62 +173,78 @@ const App = () => {
       const musicTime = audioEngine.getCurrentTime();
       setCurrentTime(musicTime);
 
-      // シルエットは1.2秒前（待機0.5秒＋移動0.7秒）から表示開始
-      const visibleMarkers = DEMO_MARKERS.filter(m => {
-        if (m.type === 'Silhouette') return musicTime >= m.hitTime - 1.2 && musicTime <= m.hitTime + 0.5;
-        return musicTime >= m.hitTime - 1.2 && musicTime <= m.hitTime + 0.5;
-      });
+      // --- 1. マーカー表示管理 ---
+      const visibleMarkers = DEMO_MARKERS.filter(m => 
+        musicTime >= m.hitTime - 1.2 && musicTime <= m.hitTime + 0.5
+      );
       setUpcomingMarkers(visibleMarkers);
 
+      // --- 2. ポーズ検出 ---
       if (videoRef.current) {
         const results = poseService.detect(videoRef.current, time);
-        if (results && results.landmarks && results.landmarks[0] && results.worldLandmarks && results.worldLandmarks[0]) {
-          latestLandmarksRef.current = results.landmarks[0];
+        if (results && results.landmarks?.[0] && results.worldLandmarks?.[0]) {
+          latestLandmarksRef.current = results.worldLandmarks[0]; // worldLandmarksを保存
+          latestPoseRef.current = results.landmarks[0]; // image-space landmarks
           updatePose(results.worldLandmarks[0], results.landmarks[0]);
         }
       }
 
-      // ダンエボスタイル: Silhouetteマーカーの状態を更新
-      const upcomingSilhouette = visibleMarkers.find(m => m.type === 'Silhouette');
-      let currentActiveSilhouette = null;
-      if (upcomingSilhouette) {
-        const timeToHit = upcomingSilhouette.hitTime - musicTime;
-        if (timeToHit > 0 && timeToHit <= 1.2) {
-          currentActiveSilhouette = { marker: upcomingSilhouette, timeToHit };
-        }
-      }
-      vrmService.updateSilhouettes(currentActiveSilhouette);
-      // Check hits
-      const HIT_WINDOW = 0.6;
+      // --- 3. 判定ロジック ---
       visibleMarkers.forEach(marker => {
-        const markerId = marker.hitTime;
-        if (!scoredPosesRef.current.has(markerId)) {
-          const timeDiff = Math.abs(musicTime - marker.hitTime);
-          
-          if (timeDiff <= HIT_WINDOW) {
-            const result = checkPoseMatch(latestLandmarksRef.current, latestPoseRef.current, marker);
-            
-            // 判定ウィンドウ内での最高評価を記録
-            const currentBest = bestResultsRef.current.get(markerId) || 'MISS';
-            if (result === 'PERFECT') {
-              bestResultsRef.current.set(markerId, 'PERFECT');
-              // PERFECTの場合は即時スコア加算して判定終了
-              evaluateMarker(marker, 'PERFECT');
-              scoredPosesRef.current.add(markerId);
-            } else if (result === 'GOOD' && currentBest === 'MISS') {
-              bestResultsRef.current.set(markerId, 'GOOD');
-            }
+        if (scoredPosesRef.current.has(marker.id)) return;
 
-          } else if (musicTime > marker.hitTime + HIT_WINDOW) {
-            // 判定ウィンドウ終了時点で一番良かった評価を採用する
-            const best = bestResultsRef.current.get(markerId) || 'MISS';
-            evaluateMarker(marker, best);
-            scoredPosesRef.current.add(markerId);
+        const timeToHit = marker.hitTime - musicTime;
+        const HIT_WINDOW = 0.6; 
+
+        if (Math.abs(timeToHit) < HIT_WINDOW) {
+          let result: 'PERFECT' | 'GOOD' | 'MISS' = 'MISS';
+
+          if (marker.type === 'Silhouette') {
+            result = checkPoseMatch(latestLandmarksRef.current, marker);
+          } else if (marker.type === 'Ripple') {
+            const landmarks = latestPoseRef.current;
+            if (landmarks) {
+              const wrist = marker.targetLimb === 'leftWrist' ? landmarks[15] : landmarks[16];
+              if (wrist) {
+                // Rippleは画像空間のlandmarksを使用 (0.0-1.0)
+                const dx = (1.0 - wrist.x) - marker.x;
+                const dy = wrist.y - marker.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 0.15) result = 'PERFECT';
+                else if (dist < 0.3) result = 'GOOD';
+              }
+            }
           }
+
+          if (result !== 'MISS') {
+            const currentBest = bestResultsRef.current.get(marker.id) || 'MISS';
+            if (result === 'PERFECT' || (result === 'GOOD' && currentBest === 'MISS')) {
+              bestResultsRef.current.set(marker.id, result);
+            }
+          }
+        } 
+        
+        // 判定期間終了
+        if (timeToHit < -HIT_WINDOW && !scoredPosesRef.current.has(marker.id)) {
+          const finalResult = bestResultsRef.current.get(marker.id) || 'MISS';
+          evaluateMarker(marker, finalResult);
+          scoredPosesRef.current.add(marker.id);
         }
       });
 
-      // 19秒でセッション終了（最後のV-Upポーズまでプレイ）
+      // --- 4. シルエットアニメーション ---
+      const activeSilhouette = visibleMarkers.find(m => 
+        m.type === 'Silhouette' && 
+        m.hitTime - musicTime > -0.5 && 
+        m.hitTime - musicTime < 1.2
+      );
+
+      vrmService.updateSilhouettes(activeSilhouette ? {
+        marker: activeSilhouette,
+        timeToHit: activeSilhouette.hitTime - musicTime
+      } : null);
+
+      // --- 5. 終了判定 ---
       if (musicTime >= 19) {
         setGameState('RESULT');
         audioEngine.stop();
@@ -232,7 +257,8 @@ const App = () => {
       }
     }
 
-    if (vrm && canvasRef.current) {
+    // --- 6. レンダリング ---
+    if (vrm) {
       vrmService.update(vrm, 0.016);
     }
 

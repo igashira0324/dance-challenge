@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRM } from '@pixiv/three-vrm';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { PoseFeatures } from '../utils/poseUtils';
 
 class VRMService {
   private loader: GLTFLoader;
@@ -10,9 +12,9 @@ class VRMService {
   private renderer: THREE.WebGLRenderer | null = null;
   private currentVrm: VRM | null = null;
   
-  // シルエット用のVRM (左右2体)
-  private silhouetteTargetL: VRM | null = null;
-  private silhouetteTargetR: VRM | null = null;
+  // シルエット用のScene (左右2体)
+  private silhouetteL: THREE.Group | null = null;
+  private silhouetteR: THREE.Group | null = null;
 
   private currentLoadId = 0;
 
@@ -62,8 +64,8 @@ class VRMService {
     });
   }
 
-  private _applySilhouetteMaterial(vrm: VRM) {
-    vrm.scene.traverse((obj) => {
+  private _applySilhouetteMaterial(scene: THREE.Group) {
+    scene.traverse((obj) => {
       if ((obj as THREE.Mesh).isMesh) {
         const mesh = obj as THREE.Mesh;
         mesh.material = new THREE.MeshBasicMaterial({
@@ -79,47 +81,39 @@ class VRMService {
 
   async loadVRM(url: string): Promise<VRM> {
     const loadId = ++this.currentLoadId;
-
-    // 読み込み開始前にシーンから既存のものを即座に削除（古い参照が残らないようにする）
     this.clearCurrentFromScene();
 
     console.log(`Starting load VRM (ID: ${loadId}): ${url}`);
     
-    // 全てパラレルでロード（高速化）
-    const [vrm, silL, silR] = await Promise.all([
-      this._loadSingleVrm(url),
-      this._loadSingleVrm(url),
-      this._loadSingleVrm(url)
-    ]);
+    // 1体だけロード
+    const vrm = await this._loadSingleVrm(url);
 
-    // もしロード中に次のロードが始まっていたら、この結果は捨てる
     if (loadId !== this.currentLoadId) {
-      console.log(`Aborting load VRM (ID: ${loadId}) - newer load started.`);
-      // 念のためリソースを解放（VRMの破棄は本来複雑だがここでは簡易的に）
       return vrm; 
     }
 
     vrm.scene.rotation.y = Math.PI;
     vrm.scene.visible = true;
 
-    this._applySilhouetteMaterial(silL);
-    this._applySilhouetteMaterial(silR);
-    silL.scene.rotation.y = Math.PI;
-    silR.scene.rotation.y = Math.PI;
-    silL.scene.visible = false;
-    silR.scene.visible = false;
+    // クローンを作成（SkeletonUtils.clone はボーンの階層構造を正しくクローンする）
+    this.silhouetteL = SkeletonUtils.clone(vrm.scene) as THREE.Group;
+    this.silhouetteR = SkeletonUtils.clone(vrm.scene) as THREE.Group;
+
+    this._applySilhouetteMaterial(this.silhouetteL);
+    this._applySilhouetteMaterial(this.silhouetteR);
+    
+    this.silhouetteL.visible = false;
+    this.silhouetteR.visible = false;
 
     if (this.scene) {
       this.scene.add(vrm.scene);
-      this.scene.add(silL.scene);
-      this.scene.add(silR.scene);
+      this.scene.add(this.silhouetteL);
+      this.scene.add(this.silhouetteR);
     }
     
     this.currentVrm = vrm;
-    this.silhouetteTargetL = silL;
-    this.silhouetteTargetR = silR;
     
-    console.log(`Successfully loaded VRM (ID: ${loadId})`);
+    console.log(`Successfully loaded VRM and cloned silhouettes (ID: ${loadId})`);
     return vrm;
   }
 
@@ -130,17 +124,15 @@ class VRMService {
       this.scene.remove(this.currentVrm.scene);
       this.currentVrm = null;
     }
-    if (this.silhouetteTargetL) {
-      this.scene.remove(this.silhouetteTargetL.scene);
-      this.silhouetteTargetL = null;
+    if (this.silhouetteL) {
+      this.scene.remove(this.silhouetteL);
+      this.silhouetteL = null;
     }
-    if (this.silhouetteTargetR) {
-      this.scene.remove(this.silhouetteTargetR.scene);
-      this.silhouetteTargetR = null;
+    if (this.silhouetteR) {
+      this.scene.remove(this.silhouetteR);
+      this.silhouetteR = null;
     }
 
-    // 念のためシーン全体を走査して古いアバターが残っていないか確認
-    // (ReactのHot Reload等でIDがズレた場合に備える)
     this.scene.children.forEach(child => {
       if (child.name === 'VRM' || child.userData?.vrm) {
         this.scene?.remove(child);
@@ -189,128 +181,103 @@ class VRMService {
   }
 
   /**
-   * PoseAngles型からVRMのボーン回転を推定して適用する (シルエット用)
+   * ベクトル形式のポーズ特徴をアバターのボーンに適用する
+   * @param target VRMインスタンス または THREE.Group (シルエット)
+   * @param features PoseFeatures
    */
-  applyPoseFromPoseAngles(vrm: VRM, angles: any, lerpAmount = 1.0) {
-    if (!vrm || !vrm.humanoid || !angles) return;
+  applyVectorPose(target: VRM | THREE.Group, features: PoseFeatures, lerpAmount = 1.0) {
+    const isVrm = (target as any).humanoid !== undefined;
+    
+    // VRMの正規化ボーンは、デフォルトで子が+X方向（左腕）や-X方向（右腕）にある
+    // ここでは単純化のため、各ボーンの「デフォルト方向」を定義してそこからの回転を求める
+    const apply = (boneName: string, featureKey: string, defaultDir: THREE.Vector3) => {
+      let bone: THREE.Object3D | null = null;
+      if (isVrm) {
+        bone = (target as VRM).humanoid.getNormalizedBoneNode(boneName as any);
+      } else {
+        // クローンされたSceneから名前で検索（VRMのボーン名はObject3D.nameに保持されている）
+        (target as THREE.Group).traverse(obj => {
+          if (obj.name.toLowerCase().includes(boneName.toLowerCase())) bone = obj;
+        });
+      }
+      if (!bone || !features[featureKey]) return;
 
-    const setRot = (boneName: string, x: number, y: number, z: number) => {
-      const bone = vrm.humanoid?.getNormalizedBoneNode(boneName as any);
-      if (!bone) return;
-      const targetQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z));
-      bone.quaternion.slerp(targetQuat, lerpAmount);
+      const targetVec = new THREE.Vector3(features[featureKey].x, features[featureKey].y, features[featureKey].z);
+      
+      // キャラクターは+Zを向いている（rotation.y = PI）ため、
+      // 外部からのベクトル（カメラ視点/ワールド）をキャラのローカル空間に合わせる
+      // 簡易的に：ワールド -> ローカル (y軸180度回転済み想定)
+      targetVec.x *= -1;
+      targetVec.z *= -1;
+
+      const quat = new THREE.Quaternion().setFromUnitVectors(defaultDir, targetVec.normalize());
+      bone.quaternion.slerp(quat, lerpAmount);
     };
 
-    // --- 左腕 ---
-    if (angles.leftShoulderLift !== undefined) {
-      // 挙上角度: 下(0) -> 水平(1.57) -> 上(3.14)
-      // VRM T-Pose(1.57相当)基準での回転: 下=+1.5, 水平=0, 上=-1.5
-      const lift = angles.leftShoulderLift;
-      const rotZ = 1.57 - lift; 
-      
-      let rotY = 0;
-      if (angles.leftArmOpen !== undefined) {
-        // 開き角: 前(1.57) -> 横(3.14)
-        // VRM T-Pose(3.14相当)基準: 前=+1.57, 横=0
-        rotY = 3.14 - angles.leftArmOpen;
-      }
-      setRot('leftUpperArm', 0, rotY, rotZ);
-    }
+    const RIGHT = new THREE.Vector3(-1, 0, 0); // キャラから見て右 (-X)
+    const LEFT = new THREE.Vector3(1, 0, 0);   // キャラから見て左 (+X)
+    const DOWN = new THREE.Vector3(0, -1, 0);
 
-    if (angles.leftArmElbow !== undefined) {
-      // 肘の曲げ: 直線(3.14) -> 90度(1.57)
-      // VRM基準: 直線=0, 90度=-1.57
-      const bend = 3.14 - angles.leftArmElbow;
-      setRot('leftLowerArm', 0, 0, -bend);
-    }
-
-    // --- 右腕 ---
-    if (angles.rightShoulderLift !== undefined) {
-      const lift = angles.rightShoulderLift;
-      const rotZ = -(1.57 - lift); // 右はZ軸反転
-      
-      let rotY = 0;
-      if (angles.rightArmOpen !== undefined) {
-        rotY = -(3.14 - angles.rightArmOpen);
-      }
-      setRot('rightUpperArm', 0, rotY, rotZ);
-    }
-
-    if (angles.rightArmElbow !== undefined) {
-      const bend = 3.14 - angles.rightArmElbow;
-      setRot('rightLowerArm', 0, 0, bend); // 右はZ軸反転
-    }
+    apply('leftUpperArm', 'leftUpperArm', LEFT);
+    apply('leftLowerArm', 'leftLowerArm', LEFT);
+    apply('rightUpperArm', 'rightUpperArm', RIGHT);
+    apply('rightLowerArm', 'rightLowerArm', RIGHT);
   }
 
   /**
    * シルエットの位置や不透明度を更新する (ダンエボ高速版)
    */
   updateSilhouettes(activeSilhouette: { marker: any; timeToHit: number } | null) {
-    if (!this.silhouetteTargetL || !this.silhouetteTargetR) return;
+    if (!this.silhouetteL || !this.silhouetteR) return;
 
     if (!activeSilhouette) {
-      this.silhouetteTargetL.scene.visible = false;
-      this.silhouetteTargetR.scene.visible = false;
+      this.silhouetteL.visible = false;
+      this.silhouetteR.visible = false;
       return;
     }
 
     const { marker, timeToHit } = activeSilhouette;
-    // ダンエボ参考: 1.2秒前に出現、最初の0.5秒(1.2秒前から0.7秒前まで)は画面端で待機（プレビュー）、残り0.7秒で画面外から中央へ飛んでくる
     const FLY_TIME = 0.7;
     const WAIT_TIME = 0.5;
     
-    // 飛行アニメーションの進行度 (0: 待機状態 または 0.7秒前, 1: 合致時)
     const progress = timeToHit > FLY_TIME 
       ? 0 
       : Math.max(0, Math.min(1, 1 - timeToHit / FLY_TIME));
 
-    // 表示をオンにする
-    this.silhouetteTargetL.scene.visible = true;
-    this.silhouetteTargetR.scene.visible = true;
+    this.silhouetteL.visible = true;
+    this.silhouetteR.visible = true;
 
-    // ターゲットポーズを取らせる（即時反映）
-    if (marker.targetPoseAngles) {
-      this.applyPoseFromPoseAngles(this.silhouetteTargetL, marker.targetPoseAngles, 1.0);
-      this.applyPoseFromPoseAngles(this.silhouetteTargetR, marker.targetPoseAngles, 1.0);
+    // ターゲットポーズを取らせる
+    if (marker.targetPoseVectors) {
+      this.applyVectorPose(this.silhouetteL, marker.targetPoseVectors, 1.0);
+      this.applyVectorPose(this.silhouetteR, marker.targetPoseVectors, 1.0);
     }
 
-    // 左右(x = -1.2, 1.2)から中央(x = 0.0)に飛んでくる（待機画面が見えるように初期位置を-1.2に設定）
     const eased = 1 - Math.pow(1 - progress, 4);
-    const startX_L = -1.2;
-    const startX_R = 1.2;
+    const startX_L = -1.5;
+    const startX_R = 1.5;
     const targetX = 0.0;
     const currentX_L = startX_L + (targetX - startX_L) * eased;
     const currentX_R = startX_R + (targetX - startX_R) * eased;
 
-    this.silhouetteTargetL.scene.position.x = currentX_L;
-    this.silhouetteTargetL.scene.position.y = 0;
-    this.silhouetteTargetL.scene.position.z = 0;
+    this.silhouetteL.position.set(currentX_L, 0, 0);
+    this.silhouetteR.position.set(currentX_R, 0, 0);
+    
+    this.silhouetteL.rotation.y = Math.PI;
+    this.silhouetteR.rotation.y = Math.PI;
 
-    this.silhouetteTargetR.scene.position.x = currentX_R;
-    this.silhouetteTargetR.scene.position.y = 0;
-    this.silhouetteTargetR.scene.position.z = 0;
-
-    // 不透明度: 出現時に素早くフェードインし、待機中は表示し続け、合致直前で少し透過、その後フェードアウト
     let opacity = 0;
     if (timeToHit > FLY_TIME) {
-      // 待機フェーズ(1.2 ~ 0.7): 最初の0.2秒でフェードイン
-      const waitProgress = 1 - (timeToHit - FLY_TIME) / WAIT_TIME; // 0 (1.2秒前) to 1 (0.7秒前)
+      const waitProgress = 1 - (timeToHit - FLY_TIME) / WAIT_TIME;
       opacity = waitProgress < 0.4 ? (waitProgress / 0.4) * 0.85 : 0.85;
     } else if (timeToHit > 0) {
-      // 飛行フェーズ(0.7 ~ 0)
-      if (progress < 0.85) {
-        opacity = 0.85;
-      } else {
-        opacity = 0.85 - (progress - 0.85) / 0.15 * 0.35; // 到達直前でわずかに透過
-      }
+      opacity = progress < 0.85 ? 0.85 : 0.85 - (progress - 0.85) / 0.15 * 0.35;
     } else {
-      // 経過後(0 ~ -0.5): リザルト用にフェードアウト
       opacity = Math.max(0, 0.5 - (Math.abs(timeToHit) / 0.3) * 0.5);
     }
 
-    // マテリアルの透明度を更新
-    const setOpacity = (sil: VRM) => {
-      sil.scene.traverse((obj) => {
+    const setOpacity = (scene: THREE.Group) => {
+      scene.traverse((obj) => {
         if ((obj as THREE.Mesh).isMesh) {
           const material = (obj as THREE.Mesh).material as THREE.Material;
           material.opacity = opacity;
@@ -318,16 +285,12 @@ class VRMService {
       });
     };
     
-    setOpacity(this.silhouetteTargetL);
-    setOpacity(this.silhouetteTargetR);
+    setOpacity(this.silhouetteL);
+    setOpacity(this.silhouetteR);
   }
-
 
   update(vrm: VRM, delta: number) {
     vrm.update(delta);
-    if (this.silhouetteTargetL) this.silhouetteTargetL.update(delta);
-    if (this.silhouetteTargetR) this.silhouetteTargetR.update(delta);
-    
     if (this.renderer && this.scene && this.camera) {
       this.renderer.render(this.scene, this.camera);
     }

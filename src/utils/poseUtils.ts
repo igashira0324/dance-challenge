@@ -1,5 +1,5 @@
 /**
- * Vector3 definition
+ * Vector3 definition and Math utilities
  */
 export interface Vector3 {
   x: number;
@@ -7,61 +7,104 @@ export interface Vector3 {
   z: number;
 }
 
-/**
- * 3つの点 A, B, C から、頂点 B における角度（ラジアン）を計算する
- * (肩-肘-手首 など)
- */
-export function computeJointAngle(a: Vector3, b: Vector3, c: Vector3): number {
-  const ba = { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
-  const bc = { x: c.x - b.x, y: c.y - b.y, z: c.z - b.z };
+export type PoseFeatures = Record<string, Vector3>;
 
-  const dot = ba.x * bc.x + ba.y * bc.y + ba.z * bc.z;
-  const magBA = Math.sqrt(ba.x ** 2 + ba.y ** 2 + ba.z ** 2);
-  const magBC = Math.sqrt(bc.x ** 2 + bc.y ** 2 + bc.z ** 2);
+function sub(a: Vector3, b: Vector3): Vector3 {
+  return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
+}
 
-  if (magBA === 0 || magBC === 0) return 0;
+function norm(v: Vector3): Vector3 {
+  const mag = Math.sqrt(v.x ** 2 + v.y ** 2 + v.z ** 2);
+  return mag === 0 ? { x: 0, y: 0, z: 0 } : { x: v.x / mag, y: v.y / mag, z: v.z / mag };
+}
 
-  // 内積から角度を求める
-  return Math.acos(Math.min(1, Math.max(-1, dot / (magBA * magBC))));
+function cross(a: Vector3, b: Vector3): Vector3 {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x
+  };
+}
+
+function dot(a: Vector3, b: Vector3): number {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+function mid(a: Vector3, b: Vector3): Vector3 {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 };
 }
 
 /**
- * ランドマーク配列から主要な関節角度を抽出する
+ * 体ローカル座標系（Basis）を構築する
+ * Up: 腰中点 -> 肩中点
+ * Right: 肩間 (Upと直交化)
+ * Forward: Up cross Right
  */
-export function extractKeyJointAngles(landmarks: any[]) {
-  if (!landmarks || landmarks.length < 25) return null;
+export function buildBodyFrame(landmarks: any[]) {
+  const ls = landmarks[11], rs = landmarks[12], lh = landmarks[23], rh = landmarks[24];
+  const shoulderMid = mid(ls, rs);
+  const hipMid = mid(lh, rh);
+  
+  const up = norm(sub(shoulderMid, hipMid));
+  const tempRight = norm(sub(rs, ls));
+  const fwd = norm(cross(tempRight, up));
+  const right = norm(cross(up, fwd));
 
+  return { origin: shoulderMid, basis: [right, up, fwd] }; // [X, Y, Z]
+}
+
+/**
+ * ベクトルを体ローカル座標系に変換する
+ */
+function toLocal(v: Vector3, basis: Vector3[]): Vector3 {
   return {
-    // 左腕: 肩(11)-肘(13)-手首(15)
-    leftArmElbow: computeJointAngle(landmarks[11], landmarks[13], landmarks[15]),
-    // 右腕: 肩(12)-肘(14)-手首(16)
-    rightArmElbow: computeJointAngle(landmarks[12], landmarks[14], landmarks[16]),
-    // 左肩の挙上: 腰(23)-肩(11)-肘(13)
-    leftShoulderLift: computeJointAngle(landmarks[23], landmarks[11], landmarks[13]),
-    // 右肩の挙上: 腰(24)-肩(12)-肘(14)
-    rightShoulderLift: computeJointAngle(landmarks[24], landmarks[12], landmarks[14]),
-    // 左腕の開き: 右肩(12)-左肩(11)-左肘(13)
-    leftArmOpen: computeJointAngle(landmarks[12], landmarks[11], landmarks[13]),
-    // 右腕の開き: 左肩(11)-右肩(12)-右肘(14)
-    rightArmOpen: computeJointAngle(landmarks[11], landmarks[12], landmarks[14]),
+    x: dot(v, basis[0]),
+    y: dot(v, basis[1]),
+    z: dot(v, basis[2])
   };
 }
 
 /**
- * 2つの角度セットの差異を計算する
+ * ランドマークから正規化されたポーズ特徴（単位ベクトル群）を抽出する
  */
-export function compareAngles(userAngles: any, targetAngles: any): number {
-  if (!userAngles || !targetAngles) return 999;
+export function extractPoseFeatures(landmarks: any[]): PoseFeatures | null {
+  if (!landmarks || landmarks.length < 25) return null;
 
-  let diff = 0;
+  const frame = buildBodyFrame(landmarks);
+  const { basis } = frame;
+
+  // 各セグメントのベクトル（ワールド）
+  const segments = {
+    leftUpperArm: sub(landmarks[13], landmarks[11]),
+    leftLowerArm: sub(landmarks[15], landmarks[13]),
+    rightUpperArm: sub(landmarks[14], landmarks[12]),
+    rightLowerArm: sub(landmarks[16], landmarks[14]),
+  };
+
+  // ローカル単位ベクトルに変換
+  const features: PoseFeatures = {};
+  for (const [key, vec] of Object.entries(segments)) {
+    features[key] = toLocal(norm(vec), basis);
+  }
+
+  return features;
+}
+
+/**
+ * 2つのポーズ特徴の類似度を計算する (1.0 = 完全一致, 0.0 = 垂直, -1.0 = 反転)
+ */
+export function calculatePoseSimilarity(user: PoseFeatures, target: PoseFeatures): number {
+  let scoreSum = 0;
   let count = 0;
 
-  for (const key in targetAngles) {
-    if (userAngles[key] !== undefined && targetAngles[key] !== undefined) {
-      diff += Math.abs(userAngles[key] - targetAngles[key]);
+  for (const key in target) {
+    if (user[key] && target[key]) {
+      const s = dot(user[key], target[key]);
+      // 0.0〜1.0 にクランプ（逆方向は 0 扱い）
+      scoreSum += Math.max(0, s);
       count++;
     }
   }
 
-  return count > 0 ? diff / count : 999;
+  return count > 0 ? scoreSum / count : 0;
 }
