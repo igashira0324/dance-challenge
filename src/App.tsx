@@ -87,9 +87,7 @@ const App = () => {
     setIsModelLoading(true);
     setModelError(null);
     try {
-      const newVrm = await vrmService.loadVRM(model.url, {
-        restPoseCorrection: model.restPoseCorrection,
-      });
+      const newVrm = await vrmService.loadVRM(model.url);
       setVrm(newVrm);
       setSelectedModelId(model.id);
     } catch (e) {
@@ -124,9 +122,7 @@ const App = () => {
 
   const handleVrmChange = async (model: BuiltinModel) => {
     try {
-      const newVrm = await vrmService.loadVRM(model.url, {
-        restPoseCorrection: model.restPoseCorrection,
-      });
+      const newVrm = await vrmService.loadVRM(model.url);
       setVrm(newVrm);
       setSelectedModelId(model.id);
     } catch (e) {

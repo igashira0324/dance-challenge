@@ -30,6 +30,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef(0);
   const lastPoseRef = useRef<any>(null);
+  const idlePoseAppliedRef = useRef(false);
 
   const MIKU_COLOR = '#39C5BB';
 
@@ -44,6 +45,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   });
 
   // removed duplicate isDragging and lastMousePos refs
+  const currentModel = BUILTIN_MODELS.find(m => m.id === selectedModelId);
 
   const [isCameraReady, setIsCameraReady] = useState(false);
 
@@ -76,7 +78,12 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     if (!isCameraReady) return;
 
     lastPoseRef.current = null;
-    if (vrm) {
+    idlePoseAppliedRef.current = false;
+
+    if (vrm && currentModel?.photoBoothIdlePose) {
+      vrmService.applyCorrectionPose(vrm, currentModel.photoBoothIdlePose, true);
+      idlePoseAppliedRef.current = true;
+    } else if (vrm) {
       vrmService.resetToCorrectedPose(vrm);
     }
 
@@ -129,20 +136,33 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
           }
 
           // Pose
-          const poseResult = (Pose as any).solve(worldLandmarks, landmarks, { runtime: 'mediapipe', video: v });
-          if (poseResult) {
-            lastPoseRef.current = poseResult;
-            vrmService.applyPose(vrm, poseResult, 0.5);
-          } else if (lastPoseRef.current) {
-            // Smoothly hold the last pose
-            vrmService.applyPose(vrm, lastPoseRef.current, 0.05);
+          const enableBodyTracking = currentModel?.enablePhotoBoothBodyTracking !== false;
+
+          if (enableBodyTracking) {
+            const poseResult = (Pose as any).solve(worldLandmarks, landmarks, { runtime: 'mediapipe', video: v });
+            if (poseResult) {
+              lastPoseRef.current = poseResult;
+              vrmService.applyPose(vrm, poseResult, 0.5);
+              idlePoseAppliedRef.current = false;
+            } else if (lastPoseRef.current) {
+              // Smoothly hold the last pose
+              vrmService.applyPose(vrm, lastPoseRef.current, 0.05);
+            }
+          } else {
+            // Body tracking disabled for this model in PhotoBooth
+            if (vrm && currentModel?.photoBoothIdlePose && !idlePoseAppliedRef.current) {
+              vrmService.applyCorrectionPose(vrm, currentModel.photoBoothIdlePose, true);
+              idlePoseAppliedRef.current = true;
+            }
           }
         }
       } else {
         // Nobody in frame - use corrected rest pose
         if (vrm && vrm.humanoid) {
-          if (lastPoseRef.current) {
-            vrmService.applyPose(vrm, lastPoseRef.current, 0.02);
+          lastPoseRef.current = null;
+          if (currentModel?.photoBoothIdlePose) {
+            vrmService.applyCorrectionPose(vrm, currentModel.photoBoothIdlePose, true);
+            idlePoseAppliedRef.current = true;
           } else {
             vrmService.resetToCorrectedPose(vrm);
           }

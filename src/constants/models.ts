@@ -13,13 +13,13 @@ export type BuiltinModel = {
   label: string;
   url: string;
   author?: string;
-  restPoseCorrection?: PoseCorrection;
-  trackingCorrection?: PoseCorrection;
+  photoBoothIdlePose?: PoseCorrection;
+  enablePhotoBoothBodyTracking?: boolean;
 };
 
 export const DEFAULT_MODEL_ID = 'default';
 
-const PPG_REST_POSE_CORRECTION: PoseCorrection = {
+const PPG_PHOTO_BOOTH_IDLE_POSE: PoseCorrection = {
   leftUpperArm:  { x: 0.1, z: -2.75 },
   rightUpperArm: { x: 0.1, z:  2.75 },
 };
@@ -36,7 +36,6 @@ export const BUILTIN_MODELS: BuiltinModel[] = [
     label: 'sn_式初音ミク (by sn_)',
     url: '/7002965447371409404.vrm',
     author: 'sn_',
-    restPoseCorrection: PPG_REST_POSE_CORRECTION,
   },
   {
     id: 'snow_caesar',
@@ -49,21 +48,24 @@ export const BUILTIN_MODELS: BuiltinModel[] = [
     label: 'Hatsune Miku (by Ppgrules945)',
     url: '/9199676059820251883.vrm',
     author: 'Ppgrules945',
-    restPoseCorrection: PPG_REST_POSE_CORRECTION,
+    photoBoothIdlePose: PPG_PHOTO_BOOTH_IDLE_POSE,
+    enablePhotoBoothBodyTracking: false,
   },
   {
     id: 'sakura_ppg',
     label: 'Sakura Miku (by Ppgrules945)',
     url: '/831740847908447423.vrm',
     author: 'Ppgrules945',
-    restPoseCorrection: PPG_REST_POSE_CORRECTION,
+    photoBoothIdlePose: PPG_PHOTO_BOOTH_IDLE_POSE,
+    enablePhotoBoothBodyTracking: false,
   },
   {
     id: 'snow_ppg',
     label: 'Snow Miku 2 (by Ppgrules945)',
     url: '/734209068825969914.vrm',
     author: 'Ppgrules945',
-    restPoseCorrection: PPG_REST_POSE_CORRECTION,
+    photoBoothIdlePose: PPG_PHOTO_BOOTH_IDLE_POSE,
+    enablePhotoBoothBodyTracking: false,
   },
   {
     id: 'miku_alt',

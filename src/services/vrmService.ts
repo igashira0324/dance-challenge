@@ -25,7 +25,6 @@ class VRMService {
 
   private currentLoadId = 0;
   private _eulerPoseDebugDone = false;
-  private currentRestPoseCorrection: PoseCorrection = {};
 
   constructor() {
     this.loader = new GLTFLoader();
@@ -106,13 +105,9 @@ class VRMService {
     });
   }
 
-  async loadVRM(url: string, options: { 
-    restPoseCorrection?: PoseCorrection,
-  } = {}): Promise<VRM> {
+  async loadVRM(url: string): Promise<VRM> {
     const loadId = ++this.currentLoadId;
     this.clearCurrentFromScene();
-
-    this.currentRestPoseCorrection = options.restPoseCorrection ?? {};
 
     console.log(`Starting load VRM (ID: ${loadId}): ${url}`);
     
@@ -126,10 +121,6 @@ class VRMService {
     const isVrm0 = vrm.meta?.metaVersion === '0';
     vrm.scene.rotation.y = isVrm0 ? Math.PI : 0;
     vrm.scene.visible = true;
-
-    // Apply rest pose correction if any
-    this.applyRestPoseCorrection(vrm, 1.0);
-    vrm.update(0);
 
     // ボーン名のマッピングを保存
     this.humanoidBoneNameMap.clear();
@@ -207,28 +198,34 @@ class VRMService {
     });
   }
 
-  private applyRestPoseCorrection(vrm: VRM, lerpAmount = 1.0) {
-    if (!vrm?.humanoid || !this.currentRestPoseCorrection) return;
+  applyCorrectionPose(vrm: VRM, correction: PoseCorrection | undefined, reset = true) {
+    if (!vrm?.humanoid || !correction) return;
 
-    for (const [boneName, rot] of Object.entries(this.currentRestPoseCorrection)) {
+    if (reset) {
+      vrm.humanoid.resetNormalizedPose();
+    }
+
+    for (const [boneName, rot] of Object.entries(correction)) {
       const bone = vrm.humanoid.getNormalizedBoneNode(boneName as any);
       if (!bone || !rot) continue;
 
-      const correctionEuler = new THREE.Euler(
-        (rot.x ?? 0),
-        (rot.y ?? 0),
-        (rot.z ?? 0)
+      const q = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(
+          rot.x ?? 0,
+          rot.y ?? 0,
+          rot.z ?? 0
+        )
       );
 
-      const correctionQuat = new THREE.Quaternion().setFromEuler(correctionEuler);
-      bone.quaternion.slerp(correctionQuat, lerpAmount);
+      bone.quaternion.copy(q);
     }
+
+    vrm.update(0);
   }
 
   resetToCorrectedPose(vrm: VRM) {
     if (!vrm?.humanoid) return;
     vrm.humanoid.resetNormalizedPose();
-    this.applyRestPoseCorrection(vrm, 1.0);
     vrm.update(0);
   }
 
