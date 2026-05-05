@@ -19,46 +19,48 @@ import {
   PoseFeatures 
 } from './utils/poseUtils';
 
-const checkPoseMatch = (worldLandmarks: any[], target: MarkerTarget): 'PERFECT' | 'GOOD' | 'MISS' => {
+const checkPoseMatch = (
+  worldLandmarks: any[], 
+  imageLandmarks: any[], 
+  target: MarkerTarget
+): 'PERFECT' | 'GOOD' | 'MISS' => {
   if (!worldLandmarks || worldLandmarks.length === 0) return 'MISS';
 
-  // ミラー補正: ユーザーがカメラを鏡として見ているため、x軸を反転させて標準的な3D空間に戻す
-  const correctedLandmarks = worldLandmarks.map(lm => ({
-    ...lm,
-    x: -lm.x // MediaPipe worldLandmarks: x+ is right. If mirrored, flip it.
-  }));
-
+  // --- Silhouette Pose Matching (3D Vector Basis) ---
   if (target.type === 'Silhouette') {
     if (!target.targetPoseVectors) return 'MISS';
     
+    const correctedLandmarks = worldLandmarks.map(lm => ({
+      ...lm,
+      x: -lm.x 
+    }));
+
     const userFeatures = extractPoseFeatures(correctedLandmarks);
     if (!userFeatures) return 'MISS';
 
     const similarity = calculatePoseSimilarity(userFeatures, target.targetPoseVectors);
     
-    if (import.meta.env.DEV) {
-       // Similarity 1.0 = Perfect, 0.0 = Bad
-       // 以前の Diff (0.0=Perfect) と感覚を合わせるため 1.0 - similarity を表示
-       console.log(`[Pose: ${target.name}] Similarity: ${similarity.toFixed(3)} | Err: ${(1.0 - similarity).toFixed(3)}`);
-    }
-
-    if (similarity > 0.85) return 'PERFECT';
-    if (similarity > 0.65) return 'GOOD';
+    if (similarity > 0.88) return 'PERFECT'; 
+    if (similarity > 0.70) return 'GOOD';
     return 'MISS';
   }
 
-  // Ripple (spatial matching)
-  const leftWrist = correctedLandmarks[15] ?? correctedLandmarks[13];
-  const rightWrist = correctedLandmarks[16] ?? correctedLandmarks[14];
+  // --- Ripple Hand Matching (2D Screen Basis) ---
+  if (target.type === 'Ripple') {
+    if (!imageLandmarks || imageLandmarks.length === 0) return 'MISS';
 
-  if (!leftWrist || !rightWrist) return 'MISS';
-  
-  let wrist = target.targetLimb === 'leftWrist' ? leftWrist : rightWrist;
+    const limbIdx = target.targetLimb === 'rightWrist' ? 16 : 15;
+    const hand = imageLandmarks[limbIdx];
+    if (!hand) return 'MISS';
 
-  // Rippleは正規化座標(0-1)で定義されているため、worldLandmarks(meters)を簡易変換するか、
-  // あるいは landmarks (image space) を使うべき。
-  // ここでは精度のため image-space landmarks を後で渡すようにする。
-  return 'MISS'; // Placeholder - will fix in loop
+    const dist = Math.sqrt(Math.pow((1.0 - hand.x) - target.x, 2) + Math.pow(hand.y - target.y, 2));
+    
+    if (dist < 0.12) return 'PERFECT';
+    if (dist < 0.22) return 'GOOD';
+    return 'MISS';
+  }
+
+  return 'MISS'; 
 };
 
 const App = () => {
@@ -77,11 +79,13 @@ const App = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef<number>(null);
-  const scoredPosesRef = useRef<Set<number>>(new Set());
-  const latestLandmarksRef = useRef<any[]>([]);
-  const latestPoseRef = useRef<any>(null);
+  const scoredPosesRef = useRef<Set<string>>(new Set()); // Changed to Set<string> for complex IDs
+  const worldLandmarksRef = useRef<any[]>([]);
+  const imageLandmarksRef = useRef<any[]>([]);
+  const kalidokitPoseRef = useRef<any>(null);
+  const comboRef = useRef(0); // Use ref for logic to avoid animate recreate
   const judgmentTimeoutRef = useRef<number | null>(null);
-  const bestResultsRef = useRef<Map<number, 'PERFECT' | 'GOOD' | 'MISS'>>(new Map());
+  const bestResultsRef = useRef<Map<string, 'PERFECT' | 'GOOD' | 'MISS'>>(new Map());
 
   // --- Initial Setup ---
   useEffect(() => {
@@ -108,7 +112,7 @@ const App = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.key === 'c') {
-        const worldLandmarks = latestLandmarksRef.current;
+        const worldLandmarks = worldLandmarksRef.current;
         if (!worldLandmarks || worldLandmarks.length === 0) return;
 
         // Capture時もミラー補正を適用して「標準ポーズ」として保存する
@@ -140,33 +144,38 @@ const App = () => {
     });
 
     if (pose) {
-      latestPoseRef.current = pose;
+      kalidokitPoseRef.current = pose;
       if (vrm) {
         vrmService.applyPose(vrm, pose);
       }
     }
   }, [vrm]);
 
-  const evaluateMarker = useCallback((_target: MarkerTarget, result: 'PERFECT' | 'GOOD' | 'MISS') => {
-    const newJudgment = { text: result === 'PERFECT' ? 'PERFECT!' : result, id: Date.now() };
+  const evaluateMarker = useCallback((target: MarkerTarget, result: 'PERFECT' | 'GOOD' | 'MISS') => {
+    const newJudgment = { 
+      text: result === 'PERFECT' ? 'PERFECT!' : result === 'GOOD' ? 'GOOD' : 'MISS', 
+      id: Date.now() 
+    };
     setJudgment(newJudgment);
 
-    if (result === 'PERFECT') {
-      setScore(prev => prev + 10);
-      setCombo(prev => prev + 1);
-      if (combo > 10) confetti();
-    } else if (result === 'GOOD') {
-      setScore(prev => prev + 5);
-      setCombo(prev => prev + 1);
+    if (result !== 'MISS') {
+      const points = result === 'PERFECT' ? 10 : 5;
+      setScore(prev => prev + points);
+      setCombo(prev => {
+        const next = prev + 1;
+        comboRef.current = next;
+        if (next > 10) confetti();
+        return next;
+      });
     } else {
       setCombo(0);
+      comboRef.current = 0;
     }
-    
     if (judgmentTimeoutRef.current) {
       window.clearTimeout(judgmentTimeoutRef.current);
     }
     judgmentTimeoutRef.current = window.setTimeout(() => setJudgment(null), 1000);
-  }, [combo]);
+  }, []); // No dependency on combo
 
   const animate = useCallback((time: number) => {
     if (gameState === 'PLAYING') {
@@ -183,8 +192,8 @@ const App = () => {
       if (videoRef.current) {
         const results = poseService.detect(videoRef.current, time);
         if (results && results.landmarks?.[0] && results.worldLandmarks?.[0]) {
-          latestLandmarksRef.current = results.worldLandmarks[0]; // worldLandmarksを保存
-          latestPoseRef.current = results.landmarks[0]; // image-space landmarks
+          worldLandmarksRef.current = results.worldLandmarks[0];
+          imageLandmarksRef.current = results.landmarks[0];
           updatePose(results.worldLandmarks[0], results.landmarks[0]);
         }
       }
@@ -197,24 +206,11 @@ const App = () => {
         const HIT_WINDOW = 0.6; 
 
         if (Math.abs(timeToHit) < HIT_WINDOW) {
-          let result: 'PERFECT' | 'GOOD' | 'MISS' = 'MISS';
-
-          if (marker.type === 'Silhouette') {
-            result = checkPoseMatch(latestLandmarksRef.current, marker);
-          } else if (marker.type === 'Ripple') {
-            const landmarks = latestPoseRef.current;
-            if (landmarks) {
-              const wrist = marker.targetLimb === 'leftWrist' ? landmarks[15] : landmarks[16];
-              if (wrist) {
-                // Rippleは画像空間のlandmarksを使用 (0.0-1.0)
-                const dx = (1.0 - wrist.x) - marker.x;
-                const dy = wrist.y - marker.y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < 0.15) result = 'PERFECT';
-                else if (dist < 0.3) result = 'GOOD';
-              }
-            }
-          }
+          const result = checkPoseMatch(
+            worldLandmarksRef.current, 
+            imageLandmarksRef.current, 
+            marker
+          );
 
           if (result !== 'MISS') {
             const currentBest = bestResultsRef.current.get(marker.id) || 'MISS';

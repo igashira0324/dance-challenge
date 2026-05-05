@@ -12,9 +12,14 @@ class VRMService {
   private renderer: THREE.WebGLRenderer | null = null;
   private currentVrm: VRM | null = null;
   
-  // シルエット用のScene (左右2体)
   private silhouetteL: THREE.Group | null = null;
   private silhouetteR: THREE.Group | null = null;
+  
+  // humanoidName -> THREE ObjectName
+  private humanoidBoneNameMap = new Map<string, string>();
+  // THREE ObjectName -> Object3D (cloned)
+  private silhouetteLBones = new Map<string, THREE.Object3D>();
+  private silhouetteRBones = new Map<string, THREE.Object3D>();
 
   private currentLoadId = 0;
 
@@ -95,9 +100,22 @@ class VRMService {
     vrm.scene.rotation.y = Math.PI;
     vrm.scene.visible = true;
 
-    // クローンを作成（SkeletonUtils.clone はボーンの階層構造を正しくクローンする）
+    // ボーン名のマッピングを保存
+    this.humanoidBoneNameMap.clear();
+    const HUMANOID_BONES = ['leftUpperArm', 'leftLowerArm', 'rightUpperArm', 'rightLowerArm'];
+    for (const name of HUMANOID_BONES) {
+      const node = vrm.humanoid.getNormalizedBoneNode(name as any);
+      if (node) this.humanoidBoneNameMap.set(name, node.name);
+    }
+
+    // クローンを作成
     this.silhouetteL = SkeletonUtils.clone(vrm.scene) as THREE.Group;
     this.silhouetteR = SkeletonUtils.clone(vrm.scene) as THREE.Group;
+
+    this.silhouetteLBones.clear();
+    this.silhouetteRBones.clear();
+    this.silhouetteL.traverse(obj => this.silhouetteLBones.set(obj.name, obj));
+    this.silhouetteR.traverse(obj => this.silhouetteRBones.set(obj.name, obj));
 
     this._applySilhouetteMaterial(this.silhouetteL);
     this._applySilhouetteMaterial(this.silhouetteR);
@@ -187,41 +205,49 @@ class VRMService {
    */
   applyVectorPose(target: VRM | THREE.Group, features: PoseFeatures, lerpAmount = 1.0) {
     const isVrm = (target as any).humanoid !== undefined;
-    
-    // VRMの正規化ボーンは、デフォルトで子が+X方向（左腕）や-X方向（右腕）にある
-    // ここでは単純化のため、各ボーンの「デフォルト方向」を定義してそこからの回転を求める
-    const apply = (boneName: string, featureKey: string, defaultDir: THREE.Vector3) => {
+    const bones = target === this.silhouetteL ? this.silhouetteLBones : 
+                  target === this.silhouetteR ? this.silhouetteRBones : null;
+
+    const applyWorld = (boneName: string, featureKey: string, defaultDir: THREE.Vector3) => {
       let bone: THREE.Object3D | null = null;
       if (isVrm) {
         bone = (target as VRM).humanoid.getNormalizedBoneNode(boneName as any);
       } else {
-        // クローンされたSceneから名前で検索（VRMのボーン名はObject3D.nameに保持されている）
-        (target as THREE.Group).traverse(obj => {
-          if (obj.name.toLowerCase().includes(boneName.toLowerCase())) bone = obj;
-        });
+        const threeName = this.humanoidBoneNameMap.get(boneName);
+        if (threeName && bones) bone = bones.get(threeName) || null;
       }
+
       if (!bone || !features[featureKey]) return;
 
-      const targetVec = new THREE.Vector3(features[featureKey].x, features[featureKey].y, features[featureKey].z);
+      // ターゲットのワールド方向ベクトル
+      const targetWorldDir = new THREE.Vector3(features[featureKey].x, features[featureKey].y, features[featureKey].z);
       
-      // キャラクターは+Zを向いている（rotation.y = PI）ため、
-      // 外部からのベクトル（カメラ視点/ワールド）をキャラのローカル空間に合わせる
-      // 簡易的に：ワールド -> ローカル (y軸180度回転済み想定)
-      targetVec.x *= -1;
-      targetVec.z *= -1;
+      // キャラクターは+Zを向いている (rotation.y = PI) ため、ワールドベクトルをローカル空間にミラー/補正
+      targetWorldDir.x *= -1;
+      targetWorldDir.z *= -1;
 
-      const quat = new THREE.Quaternion().setFromUnitVectors(defaultDir, targetVec.normalize());
-      bone.quaternion.slerp(quat, lerpAmount);
+      // 1. ターゲットのワールド回転（Quaternion）を計算
+      const targetWorldQuat = new THREE.Quaternion().setFromUnitVectors(defaultDir, targetWorldDir.normalize());
+
+      // 2. 親のワールド回転を取得して逆転させ、ローカル回転に変換
+      bone.parent?.updateWorldMatrix(true, false);
+      const parentWorldQuat = new THREE.Quaternion();
+      bone.parent?.getWorldQuaternion(parentWorldQuat);
+
+      const localQuat = parentWorldQuat.invert().multiply(targetWorldQuat);
+      
+      // 3. 適用
+      bone.quaternion.slerp(localQuat, lerpAmount);
     };
 
     const RIGHT = new THREE.Vector3(-1, 0, 0); // キャラから見て右 (-X)
     const LEFT = new THREE.Vector3(1, 0, 0);   // キャラから見て左 (+X)
-    const DOWN = new THREE.Vector3(0, -1, 0);
 
-    apply('leftUpperArm', 'leftUpperArm', LEFT);
-    apply('leftLowerArm', 'leftLowerArm', LEFT);
-    apply('rightUpperArm', 'rightUpperArm', RIGHT);
-    apply('rightLowerArm', 'rightLowerArm', RIGHT);
+    // 上腕 -> 前腕の順で適用（親子関係のため）
+    applyWorld('leftUpperArm', 'leftUpperArm', LEFT);
+    applyWorld('leftLowerArm', 'leftLowerArm', LEFT);
+    applyWorld('rightUpperArm', 'rightUpperArm', RIGHT);
+    applyWorld('rightLowerArm', 'rightLowerArm', RIGHT);
   }
 
   /**
@@ -254,8 +280,8 @@ class VRMService {
     }
 
     const eased = 1 - Math.pow(1 - progress, 4);
-    const startX_L = -1.5;
-    const startX_R = 1.5;
+    const startX_L = -3.5;
+    const startX_R = 3.5;
     const targetX = 0.0;
     const currentX_L = startX_L + (targetX - startX_L) * eased;
     const currentX_R = startX_R + (targetX - startX_R) * eased;
