@@ -82,44 +82,49 @@
     </div>
     
     <div class="container">
-        <div class="card">
-            <h2>1. なぜ「関節角度」なのか？</h2>
-            <p>これまでのオイラー角比較は、カメラの角度や向きに弱く、判定が不安定でした。<br>
-            新しいロジックでは、MediaPipeのランドマークからベクトル演算を行い、<span class="highlight">関節の曲がり具合（内積）</span>を直接計算します。</p>
-            
-            <div class="mermaid">
-                graph TD
-                A[Landmark A: 肩] --> V1[ベクトル BA]
-                B[Landmark B: 肘] --> V1
-                B --> V2[ベクトル BC]
-                C[Landmark C: 手首] --> V2
-                V1 & V2 --> D[内積計算]
-                D --> E[関節角度 ラジアン]
-                E --> F[ターゲット角度と比較]
-                F --> G{判定 PERFECT/GOOD/MISS}
-            </div>
-        </div>
+        <section class="card">
+            <h2>1. 実測値のキャプチャ (Alt + C)</h2>
+            <p>理論値ではなく、実際のあなたのカメラ環境での数値を採用するのが最も確実です。</p>
+            <ol>
+                <li>ゲームを起動し、カメラをオンにします。</li>
+                <li>判定したいポーズ（例：万歳）をカメラの前で取ります。</li>
+                <li>そのまま <strong>Alt + C</strong> キーを押します。</li>
+                <li>ブラウザのコンソール（F12）を開くと、以下のようなJSONが出力されます：</li>
+            </ol>
+            <pre><code>{
+  "leftArmElbow": 3.12,
+  "rightArmElbow": 3.08,
+  "leftShoulderLift": 2.85,
+  "rightShoulderLift": 2.91
+}</code></pre>
+            <p>これを <code>src/constants/index.ts</code> の <code>P.BANZAI</code> などにコピー＆ペーストしてください。</p>
+        </section>
 
-        <div class="card">
-            <h2>2. 新しい判定パラメータ</h2>
-            <p>以下の関節を主要な判定対象としています：</p>
+        <section class="card">
+            <h2>2. リアルタイム・デバッグ</h2>
+            <p>開発モード（npm run dev）では、マーカー出現中に現在の姿勢との「差異（Diff）」がコンソールにリアルタイム表示されます。</p>
             <ul>
-                <li><b>Elbow:</b> 肘の曲がり具合</li>
-                <li><b>Shoulder Lift:</b> 肩の上がり具合（脇の開き）</li>
-                <li><b>Arm Open:</b> 腕の前後・左右への広がり</li>
+                <li><strong>PERFECT基準:</strong> Diff < 0.35 (約20度以内の誤差)</li>
+                <li><strong>GOOD基準:</strong> Diff < 0.70 (約40度以内の誤差)</li>
             </ul>
-            <p>しきい値は現在 <code>0.35 rad (約20度)</code> 以内をPERFECTとしています。</p>
-        </div>
+            <p>「完璧にポーズを取っているのにMISSになる」場合は、コンソールのDiff値を確認し、しきい値を調整するか、ターゲット角度を実測値に更新してください。</p>
+        </section>
 
-        <div class="card">
-            <h2>3. 【重要】ポーズのキャプチャ機能</h2>
-            <p>開発中に「理想のポーズ」を定義するためのショートカットを追加しました。</p>
-            <div class="btn-debug">Alt + C</div>
-            <p>1. アプリを起動してカメラをオンにします。<br>
-               2. 理想的なポーズをとった状態で <b>Alt + C</b> を押します。<br>
-               3. ブラウザのコンソールに <code>JSON</code> 形式で角度データが出力されます。<br>
-               4. その値を <code>constants/index.ts</code> の <code>P</code> 定義に貼り付けるだけで調整完了です！</p>
-        </div>
+        <section class="card">
+            <h2>3. シルエット・ガイド</h2>
+            <p>画面に現れる緑色のシルエットは、<code>targetPoseAngles</code> に定義された角度をリアルタイムにVRMモデルへ復元して表示しています。</p>
+            <p>もしシルエットの腕の向きがおかしい場合は、ボーンの回転軸マッピング（<code>vrmService.ts</code> の <code>applyPoseFromPoseAngles</code>）を調整する必要があります。</p>
+        </section>
+
+        <section class="card">
+            <h2>4. Ripple（座標）マーカーの注意点</h2>
+            <p>カメラ映像は「ミラー（左右反転）」表示されています。本システムでは自動的にミラー補正を行っているため：</p>
+            <ul>
+                <li>画面の右側に表示されるマーカーは、あなたの右手を出すことで反応します。</li>
+                <li><code>x: 0.85</code> は画面右端、<code>x: 0.15</code> は画面左端を指します。</li>
+            </ul>
+        </section>
+
     </div>
 </body>
 </html>

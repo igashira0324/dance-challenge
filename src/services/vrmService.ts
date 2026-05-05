@@ -189,6 +189,60 @@ class VRMService {
   }
 
   /**
+   * PoseAngles型からVRMのボーン回転を推定して適用する (シルエット用)
+   */
+  applyPoseFromPoseAngles(vrm: VRM, angles: any, lerpAmount = 1.0) {
+    if (!vrm || !vrm.humanoid || !angles) return;
+
+    const setRot = (boneName: string, x: number, y: number, z: number) => {
+      const bone = vrm.humanoid?.getNormalizedBoneNode(boneName as any);
+      if (!bone) return;
+      const targetQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z));
+      bone.quaternion.slerp(targetQuat, lerpAmount);
+    };
+
+    // --- 左腕 ---
+    if (angles.leftShoulderLift !== undefined) {
+      // 挙上角度: 下(0) -> 水平(1.57) -> 上(3.14)
+      // VRM T-Pose(1.57相当)基準での回転: 下=+1.5, 水平=0, 上=-1.5
+      const lift = angles.leftShoulderLift;
+      const rotZ = 1.57 - lift; 
+      
+      let rotY = 0;
+      if (angles.leftArmOpen !== undefined) {
+        // 開き角: 前(1.57) -> 横(3.14)
+        // VRM T-Pose(3.14相当)基準: 前=+1.57, 横=0
+        rotY = 3.14 - angles.leftArmOpen;
+      }
+      setRot('leftUpperArm', 0, rotY, rotZ);
+    }
+
+    if (angles.leftArmElbow !== undefined) {
+      // 肘の曲げ: 直線(3.14) -> 90度(1.57)
+      // VRM基準: 直線=0, 90度=-1.57
+      const bend = 3.14 - angles.leftArmElbow;
+      setRot('leftLowerArm', 0, 0, -bend);
+    }
+
+    // --- 右腕 ---
+    if (angles.rightShoulderLift !== undefined) {
+      const lift = angles.rightShoulderLift;
+      const rotZ = -(1.57 - lift); // 右はZ軸反転
+      
+      let rotY = 0;
+      if (angles.rightArmOpen !== undefined) {
+        rotY = -(3.14 - angles.rightArmOpen);
+      }
+      setRot('rightUpperArm', 0, rotY, rotZ);
+    }
+
+    if (angles.rightArmElbow !== undefined) {
+      const bend = 3.14 - angles.rightArmElbow;
+      setRot('rightLowerArm', 0, 0, bend); // 右はZ軸反転
+    }
+  }
+
+  /**
    * シルエットの位置や不透明度を更新する (ダンエボ高速版)
    */
   updateSilhouettes(activeSilhouette: { marker: any; timeToHit: number } | null) {
@@ -215,13 +269,9 @@ class VRMService {
     this.silhouetteTargetR.scene.visible = true;
 
     // ターゲットポーズを取らせる（即時反映）
-    if (marker.targetAngles) {
-      const targetPose = {
-        LeftUpperArm: marker.targetAngles.leftArm,
-        RightUpperArm: marker.targetAngles.rightArm
-      };
-      this.applyPose(this.silhouetteTargetL, targetPose, 1.0);
-      this.applyPose(this.silhouetteTargetR, targetPose, 1.0);
+    if (marker.targetPoseAngles) {
+      this.applyPoseFromPoseAngles(this.silhouetteTargetL, marker.targetPoseAngles, 1.0);
+      this.applyPoseFromPoseAngles(this.silhouetteTargetR, marker.targetPoseAngles, 1.0);
     }
 
     // 左右(x = -1.2, 1.2)から中央(x = 0.0)に飛んでくる（待機画面が見えるように初期位置を-1.2に設定）
@@ -271,6 +321,7 @@ class VRMService {
     setOpacity(this.silhouetteTargetL);
     setOpacity(this.silhouetteTargetR);
   }
+
 
   update(vrm: VRM, delta: number) {
     vrm.update(delta);

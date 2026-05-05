@@ -19,15 +19,16 @@ const checkPoseMatch = (landmarks: any[], _latestPose: any, target: MarkerTarget
   if (target.type === 'Silhouette') {
     if (!landmarks || landmarks.length === 0 || !target.targetPoseAngles) return 'MISS';
     
-    // ユーザーの現在の関節角度を抽出
     const userAngles = extractKeyJointAngles(landmarks);
     if (!userAngles) return 'MISS';
 
-    // ターゲット角度と比較
     const diff = compareAngles(userAngles, target.targetPoseAngles);
     
-    // しきい値の調整 (ラジアンの平均差)
-    // 0.3 rad ≈ 17度, 0.6 rad ≈ 34度
+    // Debug logging for developers
+    if (import.meta.env.DEV) {
+       console.log(`[Pose: ${target.name}] Diff: ${diff.toFixed(3)}`);
+    }
+
     if (diff < 0.35) return 'PERFECT';
     if (diff < 0.7) return 'GOOD';
     return 'MISS';
@@ -43,8 +44,9 @@ const checkPoseMatch = (landmarks: any[], _latestPose: any, target: MarkerTarget
 
   let wrist = target.targetLimb === 'leftWrist' ? leftWrist : rightWrist;
 
-  // MediaPipeの座標系(0.0-1.0)での距離
-  const dx = wrist.x - target.x;
+  // ミラー補正 (カメラ映像が左右反転しているため、1.0 - x で補正)
+  const adjustedWristX = 1.0 - wrist.x;
+  const dx = adjustedWristX - target.x;
   const dy = wrist.y - target.y;
   const distance = Math.sqrt(dx * dx + dy * dy);
 
@@ -105,8 +107,12 @@ const App = () => {
       if (e.altKey && e.key === 'c') {
         const angles = extractKeyJointAngles(latestLandmarksRef.current);
         if (angles) {
-          console.log("Captured Pose Angles:", JSON.stringify(angles, null, 2));
-          alert("Pose Captured! Check console for angles.");
+          console.group("📸 Captured Pose Angles");
+          console.log("Copy and paste this into constants/index.ts:");
+          console.log(JSON.stringify(angles, (key, value) => 
+            typeof value === 'number' ? parseFloat(value.toFixed(2)) : value, 2));
+          console.groupEnd();
+          alert("Pose Captured! check console (F12) for the code.");
         }
       }
     };
