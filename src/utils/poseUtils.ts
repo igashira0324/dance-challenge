@@ -1,3 +1,4 @@
+/**
  * Vector3 definition and Math utilities
  */
 import { MarkerTarget } from '../constants';

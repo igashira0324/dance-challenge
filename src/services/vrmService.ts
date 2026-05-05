@@ -40,7 +40,7 @@ class VRMService {
     this.scene = new THREE.Scene();
 
     this.camera = new THREE.PerspectiveCamera(40.0, window.innerWidth / window.innerHeight, 0.1, 20.0);
-    this.camera.position.set(0.0, 1.0, 5.0);
+    this.camera.position.set(0.0, 1.0, 3.3); // Closer for 1.5x zoom
     this.camera.lookAt(0, 0.85, 0);
 
     const light = new THREE.DirectionalLight(0xffffff, Math.PI);
@@ -196,6 +196,68 @@ class VRMService {
     }
 
     if (pose.Spine) rigRotation('spine', pose.Spine);
+  }
+
+  applyFace(vrm: VRM, face: any) {
+    if (!vrm || !vrm.expressionManager || !face) return;
+
+    const s = (name: string, val: number | undefined) => {
+      if (val === undefined || val === null || isNaN(val)) return;
+      vrm.expressionManager?.setValue(name, Math.max(0, Math.min(1, val)));
+    };
+
+    // Blink - Kalidokit face.eye.l/r ranges from 0 (open) to 1 (closed)
+    // The raw values tend to report partially closed even when eyes are open,
+    // so we apply a dead zone (threshold) and rescale
+    if (face.eye) {
+      const blinkThreshold = 0.5;  // Ignore values below this (treat as "open")
+      const blinkScale = 1.0 / (1.0 - blinkThreshold);
+      const adjustBlink = (val: number) => Math.max(0, (val - blinkThreshold) * blinkScale);
+
+      s('blinkLeft', adjustBlink(face.eye.l ?? 0));
+      s('blinkRight', adjustBlink(face.eye.r ?? 0));
+    }
+    
+    // Mouth
+    if (face.mouth?.shape) {
+      s('aa', face.mouth.shape.A);
+      s('ih', face.mouth.shape.I);
+      s('ou', face.mouth.shape.U);
+      s('ee', face.mouth.shape.E);
+      s('oh', face.mouth.shape.O);
+    }
+  }
+
+  applyHands(vrm: VRM, hands: { left: any, right: any }) {
+    if (!vrm || !vrm.humanoid) return;
+
+    const applyHand = (side: 'left' | 'right', pose: any) => {
+      if (!pose) return;
+      
+      const prefix = side === 'left' ? 'left' : 'right';
+      const bones = [
+        'ThumbProximal', 'ThumbIntermediate', 'ThumbDistal',
+        'IndexProximal', 'IndexIntermediate', 'IndexDistal',
+        'MiddleProximal', 'MiddleIntermediate', 'MiddleDistal',
+        'RingProximal', 'RingIntermediate', 'RingDistal',
+        'LittleProximal', 'LittleIntermediate', 'LittleDistal'
+      ];
+
+      for (const boneName of bones) {
+        const fullBoneName = prefix + boneName;
+        const rotation = pose[boneName];
+        if (rotation) {
+          const node = vrm.humanoid.getNormalizedBoneNode(fullBoneName as any);
+          if (node) {
+            // Smoother hand movement
+            node.quaternion.slerp(new THREE.Quaternion().setFromEuler(new THREE.Euler(rotation.x, rotation.y, rotation.z)), 0.7);
+          }
+        }
+      }
+    };
+
+    if (hands.left) applyHand('left', hands.left);
+    if (hands.right) applyHand('right', hands.right);
   }
 
   /**

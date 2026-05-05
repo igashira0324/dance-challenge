@@ -9,6 +9,7 @@ import { DEMO_LYRICS } from './constants';
 
 import HUD from './components/HUD';
 import KineticTypography from './components/KineticTypography';
+import MocapTest from './components/MocapTest';
 
 import { useGameEngine } from './hooks/useGameEngine';
 import { useCameraPose } from './hooks/useCameraPose';
@@ -17,7 +18,7 @@ import { useGameLoop } from './hooks/useGameLoop';
 import './App.css';
 
 const App = () => {
-  const [gameState, setGameState] = useState<'IDLE' | 'PLAYING' | 'RESULT'>('IDLE');
+  const [gameState, setGameState] = useState<'IDLE' | 'PLAYING' | 'RESULT' | 'MOCAP'>('IDLE');
   const [vrm, setVrm] = useState<VRM | null>(null);
   const [isShaking, setIsShaking] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -119,22 +120,28 @@ const App = () => {
       
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full z-10" />
 
-      <div className="absolute bottom-6 right-6 w-72 h-48 glass-panel overflow-hidden z-30 group hover:scale-[1.02] transition-transform duration-300">
-        <video ref={videoRef} className="w-full h-full object-cover scale-x-[-1] opacity-70" muted playsInline />
-        <div className="absolute top-3 left-3 bg-rose-500/80 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-bold text-white flex items-center gap-2 animate-pulse shadow-lg">
-          <div className="w-2 h-2 bg-white rounded-full" /> REC
+      {gameState !== 'MOCAP' && (
+        <div className="absolute bottom-6 right-6 w-72 h-48 glass-panel overflow-hidden z-30 group hover:scale-[1.02] transition-transform duration-300">
+          <video ref={videoRef} className="w-full h-full object-cover scale-x-[-1] opacity-70" muted playsInline />
+          <div className="absolute top-3 left-3 bg-rose-500/80 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-bold text-white flex items-center gap-2 animate-pulse shadow-lg">
+            <div className="w-2 h-2 bg-white rounded-full" /> REC
+          </div>
         </div>
-      </div>
+      )}
 
-      <HUD 
-        score={score} 
-        combo={combo} 
-        currentTime={currentTimeMotion} 
-        upcomingMarkers={upcomingMarkers} 
-        judgment={judgment}
-      />
-      
-      <KineticTypography lyrics={DEMO_LYRICS} currentTime={currentTimeMotion} />
+      {gameState !== 'MOCAP' && (
+        <>
+          <HUD 
+            score={score} 
+            combo={combo} 
+            currentTime={currentTimeMotion} 
+            upcomingMarkers={upcomingMarkers} 
+            judgment={judgment}
+          />
+          
+          <KineticTypography lyrics={DEMO_LYRICS} currentTime={currentTimeMotion} />
+        </>
+      )}
 
       <AnimatePresence>
         {gameState === 'IDLE' && (
@@ -186,6 +193,13 @@ const App = () => {
                 className="w-full py-4 bg-transparent hover:bg-white/5 text-gray-300 font-bold rounded-2xl border border-white/10 transition-all text-sm tracking-widest flex items-center justify-center gap-2"
               >
                 <Upload size={16} /> CUSTOM VRM
+              </button>
+
+              <button
+                onClick={() => setGameState('MOCAP')}
+                className="w-full py-3 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 font-bold rounded-2xl border border-cyan-400/20 text-xs tracking-[0.2em] transition-all"
+              >
+                🔬 MOCAP TEST MODE
               </button>
             </div>
           </motion.div>
@@ -250,6 +264,10 @@ const App = () => {
               </button>
             </div>
           </motion.div>
+        )}
+
+        {gameState === 'MOCAP' && (
+          <MocapTest vrm={vrm} onExit={() => setGameState('IDLE')} />
         )}
       </AnimatePresence>
     </div>

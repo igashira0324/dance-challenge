@@ -16,10 +16,7 @@ export const useCameraPose = (vrm: VRM | null) => {
   const updatePose = useCallback((worldLandmarks: any, landmarks: any) => {
     const pose = (Pose as any).solve(worldLandmarks, landmarks, {
       runtime: 'mediapipe',
-      video: videoRef.current ? {
-        height: videoRef.current.videoHeight,
-        width: videoRef.current.videoWidth
-      } : undefined
+      video: videoRef.current as any
     });
 
     if (pose) {
@@ -35,6 +32,7 @@ export const useCameraPose = (vrm: VRM | null) => {
     setIsStartingCamera(true);
     setCameraError(null);
     try {
+      await poseService.init();
       await poseService.startCamera(videoRef.current);
     } catch (err: any) {
       setCameraError(err?.message || String(err));
