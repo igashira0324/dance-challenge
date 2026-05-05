@@ -1,6 +1,7 @@
-/**
  * Vector3 definition and Math utilities
  */
+import { MarkerTarget } from '../constants';
+
 export interface Vector3 {
   x: number;
   y: number;
@@ -107,4 +108,60 @@ export function calculatePoseSimilarity(user: PoseFeatures, target: PoseFeatures
   }
 
   return count > 0 ? scoreSum / count : 0;
+}
+
+export function checkPoseMatch(
+  worldLandmarks: any[], 
+  imageLandmarks: any[], 
+  target: MarkerTarget,
+  videoAspectRatio: number = 1.0
+): { result: 'PERFECT' | 'GOOD' | 'MISS', similarity: number } {
+  if (!worldLandmarks || worldLandmarks.length === 0) return { result: 'MISS', similarity: 0 };
+
+  // --- Silhouette Pose Matching (3D Vector Basis) ---
+  if (target.type === 'Silhouette') {
+    if (!target.targetPoseVectors) return { result: 'MISS', similarity: 0 };
+    
+    const correctedLandmarks = worldLandmarks.map(lm => ({
+      ...lm,
+      x: -lm.x 
+    }));
+
+    const userFeatures = extractPoseFeatures(correctedLandmarks);
+    if (!userFeatures) return { result: 'MISS', similarity: 0 };
+
+    const similarity = calculatePoseSimilarity(userFeatures, target.targetPoseVectors);
+    
+    // ダンエボ風しきい値調整
+    if (similarity > 0.86) return { result: 'PERFECT', similarity }; 
+    if (similarity > 0.65) return { result: 'GOOD', similarity };
+    return { result: 'MISS', similarity };
+  }
+
+  // --- Ripple Hand Matching (2D Screen Basis) ---
+  if (target.type === 'Ripple') {
+    if (!imageLandmarks || imageLandmarks.length === 0) return { result: 'MISS', similarity: 0 };
+
+    const correctedLandmarks = imageLandmarks.map(lm => ({
+      ...lm,
+      x: 1.0 - lm.x 
+    }));
+
+    const leftWrist = correctedLandmarks[15] ?? correctedLandmarks[13];
+    const rightWrist = correctedLandmarks[16] ?? correctedLandmarks[14];
+    const hand = target.targetLimb === 'leftWrist' ? leftWrist : rightWrist;
+
+    if (hand) {
+      // アスペクト比を考慮して距離を計算 (横長の歪みを補正)
+      const dx = (hand.x - target.x) * videoAspectRatio;
+      const dy = (hand.y - target.y);
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 0.12) return { result: 'PERFECT', similarity: 1.0 - dist };
+      if (dist < 0.22) return { result: 'GOOD', similarity: 1.0 - dist };
+    }
+    return { result: 'MISS', similarity: 0 };
+  }
+
+  return { result: 'MISS', similarity: 0 }; 
 }

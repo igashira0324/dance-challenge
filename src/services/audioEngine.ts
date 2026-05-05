@@ -65,6 +65,30 @@ class AudioEngine {
     scheduler();
   }
 
+  async loadTrack(url: string) {
+    if (!this.ctx) this.init();
+    const resp = await fetch(url);
+    const buf = await resp.arrayBuffer();
+    return await this.ctx!.decodeAudioData(buf);
+  }
+
+  async playTrack(buffer: AudioBuffer) {
+    if (!this.ctx) this.init();
+    if (this.ctx?.state === 'suspended') await this.ctx.resume();
+    
+    this.stop();
+    this.startTime = this.ctx!.currentTime;
+    this.isPlaying = true;
+
+    const source = this.ctx!.createBufferSource();
+    source.buffer = buffer;
+    source.connect(this.ctx!.destination);
+    source.start(0);
+
+    // 同時にメトロノームも動かす（同期用）
+    this.playDemo();
+  }
+
   getCurrentTime() {
     if (!this.isPlaying || !this.ctx) return 0;
     return this.ctx.currentTime - this.startTime;

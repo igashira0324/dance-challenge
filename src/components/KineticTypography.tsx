@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence, MotionValue } from 'framer-motion';
 import { Lyric, type AnimationType } from '../constants';
 import './KineticTypography.css';
 
 interface Props {
-  currentTime: number;
+  currentTime: MotionValue<number>;
   lyrics: Lyric[];
 }
 
@@ -74,9 +74,17 @@ function getAnimationProps(animation: AnimationType): any {
 }
 
 export const KineticTypography: React.FC<Props> = ({ currentTime, lyrics }) => {
-  const activeLyric = useMemo(() => {
-    return lyrics.find(l => currentTime >= l.time && currentTime < l.time + l.duration);
-  }, [currentTime, lyrics]);
+  const [activeLyric, setActiveLyric] = useState<Lyric | null>(null);
+
+  useEffect(() => {
+    // MotionValueの変更を監視し、歌詞の境界を越えた時だけ状態を更新する
+    return currentTime.onChange((time) => {
+      const lyric = lyrics.find(l => time >= l.time && time < l.time + l.duration);
+      if (lyric?.text !== activeLyric?.text) {
+        setActiveLyric(lyric || null);
+      }
+    });
+  }, [currentTime, lyrics, activeLyric]);
 
   if (!activeLyric) return null;
 
