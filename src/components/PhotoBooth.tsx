@@ -709,7 +709,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
                 画像は一時保存され、一定時間後に自動削除されます。
               </p>
 
-              <div className="p-1 rounded-[2.5rem] inline-block mb-6 shadow-2xl relative overflow-hidden bg-gradient-to-br from-[#39C5BB] via-white to-[#00A39C]">
+              <div className="p-1 rounded-[2.5rem] inline-block mb-6 shadow-2xl relative overflow-hidden bg-gradient-to-br from-[#39C5BB] via-white to-[#FF007F]">
                 <div className="bg-white p-5 rounded-[2.3rem] relative z-10">
                   <QRCodeCanvas
                     value={shareUrl}
@@ -727,7 +727,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
 
                   {/* Decorative scanning line effect */}
                   <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[2.3rem]">
-                    <div className="w-full h-1 bg-[#39C5BB]/40 absolute top-0 animate-[scan_3s_linear_infinite]" />
+                    <div className="w-full h-1 bg-[#00FCFF]/40 absolute top-0 animate-[scan_3s_linear_infinite]" />
                   </div>
                 </div>
               </div>
