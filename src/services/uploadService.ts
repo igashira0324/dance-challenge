@@ -1,33 +1,33 @@
 /**
- * Service to handle image uploads for QR code sharing.
- * Uses the local Vite backend (/api/upload) to ensure 100% offline capability.
+ * Service to handle image uploads for QR code sharing via the Vite proxy.
+ * Routes the image to /api/upload-external, which handles external uploads
+ * to file.io (primary) or uguu.se (fallback), bypassing client-side CORS issues.
  */
 class UploadService {
-  /**
-   * Uploads a base64 image to the local server.
-   */
   async uploadImage(dataUrl: string): Promise<string> {
-    const uploadResponse = await fetch('/api/upload', {
+    const response = await fetch('/api/upload-external', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ image: dataUrl }),
-    });
+    })
 
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      throw new Error(`Local upload failed (${uploadResponse.status}): ${errorText}`);
+    if (!response.ok) {
+      const text = await response.text()
+      throw new Error(`External upload failed (${response.status}): ${text}`)
     }
 
-    const result = await uploadResponse.json();
+    const result = await response.json()
 
     if (!result.url || typeof result.url !== 'string') {
-      throw new Error(result.error || 'Invalid local upload response');
+      throw new Error(result.error || 'Invalid upload response')
     }
 
-    return result.url;
+    console.log('[UploadService] uploaded:', result)
+
+    return result.url
   }
 }
 
-export const uploadService = new UploadService();
+export const uploadService = new UploadService()

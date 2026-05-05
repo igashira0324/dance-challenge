@@ -311,7 +311,9 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
       setShareUrl(url);
     } catch (e) {
       console.error('Share failed', e);
-      setShareError('QR共有用の画像保存に失敗しました。PCとスマホが同じWi-Fiに接続されているか確認してください。');
+      setShareError(
+        '写真のアップロードに失敗しました。外部通信が許可されているか、file.io / uguu.se にアクセスできるか確認してください。'
+      );
     } finally {
       setIsSharing(false);
     }
@@ -704,7 +706,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
 
               <p className="text-white/60 mb-6 text-sm">
                 スマホで読み取ると写真をダウンロードできます。<br />
-                PCとスマホは同じWi-Fiに接続してください。
+                画像は一時保存され、一定時間後に自動削除されます。
               </p>
 
               <div className="bg-white p-6 rounded-3xl inline-block mb-6 shadow-2xl relative overflow-hidden">
@@ -734,7 +736,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
               </div>
               
               <p className="text-white/30 text-[10px] mt-4 uppercase tracking-widest">
-                Local share / Expires in 24 hours
+                Temporary public share / Expires automatically
               </p>
 
               {shareError && (

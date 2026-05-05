@@ -1,182 +1,135 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
-import { fileURLToPath } from 'url';
-import type { IncomingMessage, ServerResponse } from 'http';
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+function externalUploadPlugin() {
+  const handler = (req: any, res: any, next: any) => {
+    if (req.url === '/api/upload-external' && req.method === 'POST') {
+      let body = ''
 
-const PHOTO_TTL_MS = 24 * 60 * 60 * 1000;
-const PHOTO_DIR = path.resolve(__dirname, '.photos');
+      req.on('data', (chunk: any) => {
+        body += chunk.toString()
+      })
 
-function getLocalIPv4() {
-  const interfaces = os.networkInterfaces();
-
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name] ?? []) {
-      if (
-        iface.family === 'IPv4' &&
-        !iface.internal
-      ) {
-        return iface.address;
-      }
-    }
-  }
-
-  return '127.0.0.1';
-}
-
-function cleanupOldPhotos() {
-  if (!fs.existsSync(PHOTO_DIR)) return;
-
-  const now = Date.now();
-  for (const file of fs.readdirSync(PHOTO_DIR)) {
-    if (!file.endsWith('.png')) continue;
-
-    const filePath = path.join(PHOTO_DIR, file);
-    const stat = fs.statSync(filePath);
-
-    if (now - stat.mtimeMs > PHOTO_TTL_MS) {
-      fs.unlinkSync(filePath);
-    }
-  }
-}
-
-function sendJson(res: ServerResponse, statusCode: number, data: unknown) {
-  res.statusCode = statusCode;
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.end(JSON.stringify(data));
-}
-
-function localUploadPlugin() {
-  const handler = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
-    const url = req.url ?? '';
-
-    if (url === '/api/upload' && req.method === 'POST') {
-      let body = '';
-
-      req.on('data', (chunk) => {
-        body += chunk.toString();
-
-        // 画像が大きすぎる場合の保護。
-        if (body.length > 20 * 1024 * 1024) {
-          res.statusCode = 413;
-          res.end('Payload too large');
-          req.destroy();
-        }
-      });
-
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
-          cleanupOldPhotos();
+          const data = JSON.parse(body)
 
-          const data = JSON.parse(body);
-
-          if (typeof data.image !== 'string') {
-            return sendJson(res, 400, { error: 'image is required' });
+          if (!data.image || typeof data.image !== 'string') {
+            res.statusCode = 400
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'image is required' }))
+            return
           }
 
-          const match = data.image.match(/^data:image\/png;base64,(.+)$/);
+          const match = data.image.match(/^data:image\/png;base64,(.+)$/)
           if (!match) {
-            return sendJson(res, 400, { error: 'invalid image format' });
+            res.statusCode = 400
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'invalid image format' }))
+            return
           }
 
-          const base64Data = match[1];
+          const buffer = Buffer.from(match[1], 'base64')
+          const blob = new Blob([buffer], { type: 'image/png' })
 
-          if (!fs.existsSync(PHOTO_DIR)) {
-            fs.mkdirSync(PHOTO_DIR, { recursive: true });
+          const filename = `miku_photo_${Date.now()}.png`
+
+          // 1. Try file.io
+          try {
+            const formData = new FormData()
+            formData.append('file', blob, filename)
+
+            const response = await fetch('https://file.io/?expires=1d', {
+              method: 'POST',
+              body: formData,
+            })
+
+            const text = await response.text()
+
+            if (response.ok) {
+              const result = JSON.parse(text)
+              if (result.success && result.link) {
+                res.setHeader('Content-Type', 'application/json')
+                res.end(JSON.stringify({
+                  url: result.link,
+                  provider: 'file.io',
+                }))
+                return
+              }
+            }
+
+            console.warn('file.io failed:', response.status, text)
+          } catch (e) {
+            console.warn('file.io error:', e)
           }
 
-          const id = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-          const filename = `photo_${id}.png`;
-          const filePath = path.join(PHOTO_DIR, filename);
+          // 2. Fallback to uguu.se
+          try {
+            const formData = new FormData()
+            formData.append('files[]', blob, filename)
 
-          fs.writeFileSync(filePath, base64Data, 'base64');
+            const response = await fetch('https://uguu.se/upload', {
+              method: 'POST',
+              body: formData,
+            })
 
-          const localIp = getLocalIPv4();
+            const text = await response.text()
 
-          const hostHeader = req.headers.host ?? `localhost:5173`;
-          const port = hostHeader.includes(':')
-            ? hostHeader.split(':')[1]
-            : '5173';
+            if (response.ok) {
+              const result = JSON.parse(text)
+              if (result.success && result.files?.[0]?.url) {
+                res.setHeader('Content-Type', 'application/json')
+                res.end(JSON.stringify({
+                  url: result.files[0].url,
+                  provider: 'uguu.se',
+                }))
+                return
+              }
+            }
 
-          const shareUrl = `http://${localIp}:${port}/api/photos/${filename}`;
+            console.warn('uguu.se failed:', response.status, text)
+          } catch (e) {
+            console.warn('uguu.se error:', e)
+          }
 
-          return sendJson(res, 200, {
-            url: shareUrl,
-            expiresIn: 86400,
-          });
+          res.statusCode = 502
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({
+            error: 'All external upload providers failed',
+          }))
         } catch (e) {
-          return sendJson(res, 500, {
+          res.statusCode = 500
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({
             error: e instanceof Error ? e.message : String(e),
-          });
+          }))
         }
-      });
+      })
 
-      return;
+      return
     }
 
-    if (url.startsWith('/api/photos/') && req.method === 'GET') {
-      try {
-        cleanupOldPhotos();
-
-        const filename = path.basename(url.split('?')[0]);
-
-        if (!/^photo_[a-zA-Z0-9_.-]+\.png$/.test(filename)) {
-          res.statusCode = 400;
-          res.end('Bad request');
-          return;
-        }
-
-        const filePath = path.join(PHOTO_DIR, filename);
-
-        if (!fs.existsSync(filePath)) {
-          res.statusCode = 404;
-          res.end('Not found');
-          return;
-        }
-
-        res.setHeader('Content-Type', 'image/png');
-        res.setHeader('Cache-Control', 'no-store');
-        res.end(fs.readFileSync(filePath));
-      } catch (e) {
-        res.statusCode = 500;
-        res.end(e instanceof Error ? e.message : String(e));
-      }
-
-      return;
-    }
-
-    next();
-  };
+    next()
+  }
 
   return {
-    name: 'local-upload',
+    name: 'external-upload',
     configureServer(server: any) {
-      server.middlewares.use(handler);
+      server.middlewares.use(handler)
     },
     configurePreviewServer(server: any) {
-      server.middlewares.use(handler);
+      server.middlewares.use(handler)
     },
-  };
+  }
 }
 
 export default defineConfig({
-  plugins: [react(), localUploadPlugin()],
+  plugins: [react(), externalUploadPlugin()],
   server: {
     host: '0.0.0.0',
     port: 5173,
-    strictPort: true,
     watch: {
-      usePolling: true,
-    },
+      usePolling: true
+    }
   },
-  preview: {
-    host: '0.0.0.0',
-    port: 4173,
-    strictPort: true,
-  },
-});
+})
