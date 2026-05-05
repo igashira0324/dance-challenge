@@ -24,11 +24,6 @@ const PPG_REST_POSE_CORRECTION: PoseCorrection = {
   rightUpperArm: { x: 0.1, z:  2.75 },
 };
 
-const PPG_TRACKING_CORRECTION: PoseCorrection = {
-  leftUpperArm:  { x: 0.1, z: -1.4 },
-  rightUpperArm: { x: 0.1, z:  1.4 },
-};
-
 export const BUILTIN_MODELS: BuiltinModel[] = [
   {
     id: 'default',
@@ -41,6 +36,7 @@ export const BUILTIN_MODELS: BuiltinModel[] = [
     label: 'sn_式初音ミク (by sn_)',
     url: '/7002965447371409404.vrm',
     author: 'sn_',
+    restPoseCorrection: PPG_REST_POSE_CORRECTION,
   },
   {
     id: 'snow_caesar',
@@ -54,7 +50,6 @@ export const BUILTIN_MODELS: BuiltinModel[] = [
     url: '/9199676059820251883.vrm',
     author: 'Ppgrules945',
     restPoseCorrection: PPG_REST_POSE_CORRECTION,
-    trackingCorrection: PPG_TRACKING_CORRECTION,
   },
   {
     id: 'sakura_ppg',
@@ -62,7 +57,6 @@ export const BUILTIN_MODELS: BuiltinModel[] = [
     url: '/831740847908447423.vrm',
     author: 'Ppgrules945',
     restPoseCorrection: PPG_REST_POSE_CORRECTION,
-    trackingCorrection: PPG_TRACKING_CORRECTION,
   },
   {
     id: 'snow_ppg',
@@ -70,7 +64,6 @@ export const BUILTIN_MODELS: BuiltinModel[] = [
     url: '/734209068825969914.vrm',
     author: 'Ppgrules945',
     restPoseCorrection: PPG_REST_POSE_CORRECTION,
-    trackingCorrection: PPG_TRACKING_CORRECTION,
   },
   {
     id: 'miku_alt',

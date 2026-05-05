@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { VRMLoaderPlugin, VRM, VRMHumanBoneName } from '@pixiv/three-vrm';
+import { VRMLoaderPlugin, VRM } from '@pixiv/three-vrm';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { MarkerTarget, PoseFeatures } from '../types/game';
 import type { EulerPose } from '../constants/poses';
@@ -26,7 +26,6 @@ class VRMService {
   private currentLoadId = 0;
   private _eulerPoseDebugDone = false;
   private currentRestPoseCorrection: PoseCorrection = {};
-  private currentTrackingCorrection: PoseCorrection = {};
 
   constructor() {
     this.loader = new GLTFLoader();
@@ -109,13 +108,11 @@ class VRMService {
 
   async loadVRM(url: string, options: { 
     restPoseCorrection?: PoseCorrection,
-    trackingCorrection?: PoseCorrection 
   } = {}): Promise<VRM> {
     const loadId = ++this.currentLoadId;
     this.clearCurrentFromScene();
 
     this.currentRestPoseCorrection = options.restPoseCorrection ?? {};
-    this.currentTrackingCorrection = options.trackingCorrection ?? {};
 
     console.log(`Starting load VRM (ID: ${loadId}): ${url}`);
     
@@ -254,16 +251,6 @@ class VRMService {
         rotation.z * dampener
       );
       const quaternion = new THREE.Quaternion().setFromEuler(euler);
-
-      // Apply tracking-specific correction if exists
-      const correction = this.currentTrackingCorrection[name as VRMHumanBoneName];
-      if (correction) {
-        const correctionQuat = new THREE.Quaternion().setFromEuler(
-          new THREE.Euler(correction.x ?? 0, correction.y ?? 0, correction.z ?? 0)
-        );
-        quaternion.premultiply(correctionQuat);
-      }
-
       part.quaternion.slerp(quaternion, lerpAmount);
     };
 

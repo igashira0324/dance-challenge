@@ -89,7 +89,6 @@ const App = () => {
     try {
       const newVrm = await vrmService.loadVRM(model.url, {
         restPoseCorrection: model.restPoseCorrection,
-        trackingCorrection: model.trackingCorrection,
       });
       setVrm(newVrm);
       setSelectedModelId(model.id);
@@ -127,7 +126,6 @@ const App = () => {
     try {
       const newVrm = await vrmService.loadVRM(model.url, {
         restPoseCorrection: model.restPoseCorrection,
-        trackingCorrection: model.trackingCorrection,
       });
       setVrm(newVrm);
       setSelectedModelId(model.id);
