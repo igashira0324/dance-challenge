@@ -20,17 +20,19 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef(0);
 
-  // Miku Teal color
   const MIKU_COLOR = '#39C5BB';
 
-  // Avatar transformation state
-  const [transform, setTransform] = useState({
+  // Use Ref for transformation to avoid useEffect re-triggering and ensure loop gets latest values
+  const transformRef = useRef({
     x: -0.5,
     y: 0,
     z: 0,
     rotationY: 0,
     scale: 1.0
   });
+
+  // Dummy state just to trigger re-renders for UI labels (optional but helpful for feedback)
+  const [, setTick] = useState(0);
 
   const isDragging = useRef(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
@@ -85,9 +87,10 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
             const poseResult = (Pose as any).solve(worldLandmarks, landmarks, { runtime: 'mediapipe', video: v });
             if (poseResult) vrmService.applyPose(vrm, poseResult, 0.5);
             
-            // Apply mouse-driven transformations
+            // Apply current transformation from Ref
+            const transform = transformRef.current;
             vrm.scene.position.set(transform.x, transform.y, transform.z);
-            vrm.scene.rotation.y = Math.PI + transform.rotationY; // Base rotation + user adjustment
+            vrm.scene.rotation.y = Math.PI + transform.rotationY;
             vrm.scene.scale.set(transform.scale, transform.scale, transform.scale);
 
             const now = performance.now();
@@ -107,7 +110,7 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
       vrmService.setPosition(0, 0, 0);
       if (vrm) vrm.scene.scale.set(1, 1, 1);
     };
-  }, [vrm, transform]);
+  }, [vrm]); // Only depend on vrm
 
   // Mouse transformation handlers
   const onMouseDown = (e: React.MouseEvent) => {
@@ -123,16 +126,12 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
     lastMousePos.current = { x: e.clientX, y: e.clientY };
 
     if (e.shiftKey) {
-      // Rotation
-      setTransform(prev => ({ ...prev, rotationY: prev.rotationY + dx * 0.01 }));
+      transformRef.current.rotationY += dx * 0.01;
     } else {
-      // Position
-      setTransform(prev => ({ 
-        ...prev, 
-        x: prev.x + dx * 0.005,
-        y: prev.y - dy * 0.005
-      }));
+      transformRef.current.x += dx * 0.005;
+      transformRef.current.y -= dy * 0.005;
     }
+    setTick(t => t + 1); // Trigger re-render for UI feedback if needed
   }, []);
 
   const onMouseUp = () => {
@@ -141,10 +140,8 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
 
   const onWheel = (e: React.WheelEvent) => {
     const delta = e.deltaY * -0.001;
-    setTransform(prev => ({
-      ...prev,
-      scale: Math.max(0.1, Math.min(3.0, prev.scale + delta))
-    }));
+    transformRef.current.scale = Math.max(0.1, Math.min(3.0, transformRef.current.scale + delta));
+    setTick(t => t + 1);
   };
 
   const startCapture = () => {
@@ -188,7 +185,7 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
       ctx.drawImage(vrmCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
     }
 
-    // 3. Frame
+    // 3. Frame (Miku Teal)
     ctx.strokeStyle = MIKU_COLOR;
     ctx.lineWidth = 16;
     ctx.strokeRect(8, 8, tempCanvas.width - 16, tempCanvas.height - 16);
@@ -196,15 +193,24 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
     ctx.lineWidth = 4;
     ctx.strokeRect(20, 20, tempCanvas.width - 40, tempCanvas.height - 40);
 
-    // 4. Text with Shadow
-    ctx.fillStyle = '#ffffff';
+    // 4. Text with Shadow (Miku Teal)
+    ctx.fillStyle = MIKU_COLOR;
     ctx.font = 'bold 48px Outfit, Arial';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-    ctx.shadowBlur = 10;
+    
+    // Add strong shadow to make teal readable on any background
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+    ctx.shadowBlur = 12;
     ctx.shadowOffsetX = 4;
     ctx.shadowOffsetY = 4;
-    ctx.fillText('MEMORY WITH MIKU', 60, tempCanvas.height - 70);
     
+    const text = 'MEMORY WITH MIKU';
+    ctx.fillText(text, 60, tempCanvas.height - 70);
+    
+    // Reset shadow
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
     setCapturedImage(tempCanvas.toDataURL('image/png'));
   };
 
@@ -225,7 +231,7 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
       onMouseLeave={onMouseUp}
       onWheel={onWheel}
     >
-      {/* Background Video - z-index 0 to stay behind 3D canvas at z-10 */}
+      {/* Background Video */}
       <video 
         ref={videoRef} 
         className="absolute inset-0 w-full h-full object-cover scale-x-[-1] z-0" 
@@ -245,7 +251,7 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
         )}
       </AnimatePresence>
 
-      {/* UI Overlay - z-index 100 to stay above everything */}
+      {/* UI Overlay */}
       <div className="absolute inset-0 z-[100] pointer-events-none flex flex-col justify-between p-8">
         <div className="flex justify-between items-start pointer-events-auto">
           <div className="bg-black/70 backdrop-blur-xl p-5 rounded-3xl border border-white/10 text-white shadow-2xl">
@@ -253,7 +259,7 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
               <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: MIKU_COLOR }} />
               PHOTO BOOTH
             </h2>
-            <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] mt-1 font-bold">Adjust Miku with your mouse!</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] mt-1 font-bold">Mimic Miku's Pose!</p>
             <p className={`text-[9px] mt-3 font-mono px-2 py-1 rounded bg-black/40 ${status.startsWith('ERROR') ? 'text-rose-400' : 'text-cyan-400'}`}>
               STATUS: {status}
             </p>
