@@ -15,7 +15,7 @@ MediaPipe Pose と 3D VRM を活用した、高精度な次世代リズムダン
 1. **VRMモデルの準備**:
    - 再配布制限のため、リポジトリに3Dモデルは含まれていません。
    - `public/default.vrm` として、お手持ちのVRMファイルを配置してください。詳細は [public/README.md](./public/README.md) を参照。
-2. **RUN_GAME.bat** をダブルクリックします。
+2. **start_game.bat** をダブルクリックします。
 3. 自動的に依存関係がインストールされ、開発サーバーが起動します。
 4. ブラウザで `http://localhost:5173` を開きます。
 

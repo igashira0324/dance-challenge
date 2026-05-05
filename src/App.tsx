@@ -188,6 +188,16 @@ const App = () => {
                   </button>
                 </div>
               )}
+              
+              {!vrm && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-rose-400 text-xs font-bold mb-1 flex items-center justify-center gap-2"
+                >
+                  <span className="animate-pulse">⚠️ まずは下のボタンからモデルを読み込んでください</span>
+                </motion.div>
+              )}
 
                 <button 
                   onClick={handleStart}
@@ -217,7 +227,8 @@ const App = () => {
 
               <button
                 onClick={() => setGameState('PHOTO_BOOTH')}
-                className="w-full py-4 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-200 font-bold rounded-2xl border border-fuchsia-400/30 text-sm tracking-[0.1em] transition-all flex items-center justify-center gap-2"
+                disabled={!vrm}
+                className="w-full py-4 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-200 font-bold rounded-2xl border border-fuchsia-400/30 text-sm tracking-[0.1em] transition-all flex items-center justify-center gap-2 disabled:opacity-20 disabled:grayscale"
               >
                 📸 PHOTO BOOTH with MIKU
               </button>
