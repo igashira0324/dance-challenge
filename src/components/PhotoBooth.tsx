@@ -709,25 +709,26 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
                 画像は一時保存され、一定時間後に自動削除されます。
               </p>
 
-              <div className="bg-white p-6 rounded-3xl inline-block mb-6 shadow-2xl relative overflow-hidden">
-                <QRCodeCanvas
-                  value={shareUrl}
-                  size={260}
-                  level="H"
-                  includeMargin={false}
-                  bgColor="#ffffff"
-                  fgColor="#000000"
-                  imageSettings={{
-                    src: '/Chibi-style_Hatsune_Miku_adorable_icon_illustratio-1777978579165.png',
-                    width: 52,
-                    height: 52,
-                    excavate: true,
-                  }}
-                />
+              <div className="p-1 rounded-[2.5rem] inline-block mb-6 shadow-2xl relative overflow-hidden bg-gradient-to-br from-[#39C5BB] via-white to-[#00A39C]">
+                <div className="bg-white p-5 rounded-[2.3rem] relative z-10">
+                  <QRCodeCanvas
+                    value={shareUrl}
+                    size={260}
+                    level="H"
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                    imageSettings={{
+                      src: '/Chibi-style_Hatsune_Miku_adorable_icon_illustratio-1777978579165.png',
+                      width: 52,
+                      height: 52,
+                      excavate: true,
+                    }}
+                  />
 
-                {/* Decorative scanning line effect */}
-                <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-3xl">
-                  <div className="w-full h-1 bg-cyan-400/30 absolute top-0 animate-[scan_3s_linear_infinite]" />
+                  {/* Decorative scanning line effect */}
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[2.3rem]">
+                    <div className="w-full h-1 bg-[#39C5BB]/40 absolute top-0 animate-[scan_3s_linear_infinite]" />
+                  </div>
                 </div>
               </div>
 
