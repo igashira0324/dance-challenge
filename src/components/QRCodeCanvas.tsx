@@ -26,6 +26,7 @@ export const QRCodeCanvas = ({
   value,
   size = 128,
   level = 'L',
+  includeMargin = true,
   bgColor = '#FFFFFF',
   fgColor = '#000000',
   imageSettings,
@@ -53,7 +54,9 @@ export const QRCodeCanvas = ({
     // Generate QR Code
     try {
       const qr = QrCode.encodeText(value, ecl);
-      const scale = size / qr.size;
+      const marginModules = includeMargin ? 4 : 0;
+      const totalModules = qr.size + marginModules * 2;
+      const scale = size / totalModules;
 
       // Draw background
       ctx.fillStyle = bgColor;
@@ -64,7 +67,12 @@ export const QRCodeCanvas = ({
       for (let y = 0; y < qr.size; y++) {
         for (let x = 0; x < qr.size; x++) {
           if (qr.getModule(x, y)) {
-            ctx.fillRect(Math.round(x * scale), Math.round(y * scale), Math.ceil(scale), Math.ceil(scale));
+            ctx.fillRect(
+              Math.round((x + marginModules) * scale),
+              Math.round((y + marginModules) * scale),
+              Math.ceil(scale),
+              Math.ceil(scale)
+            );
           }
         }
       }
@@ -92,7 +100,7 @@ export const QRCodeCanvas = ({
     } catch (e) {
       console.error('QR Generation failed:', e);
     }
-  }, [value, size, level, bgColor, fgColor, imageSettings]);
+  }, [value, size, level, includeMargin, bgColor, fgColor, imageSettings]);
 
   return (
     <canvas

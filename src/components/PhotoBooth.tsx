@@ -11,13 +11,35 @@ import { BUILTIN_MODELS } from '../constants/models';
 import type { BuiltinModel } from '../constants/models';
 import { uploadService } from '../services/uploadService';
 
+// --- Constants & Utilities ---
+
+const MIKU_COLOR = '#39C5BB';
+
+const DECORATION_ASSETS_MOJI = [
+  'deco_moji_01.png', 'deco_moji_02.png', 'deco_moji_03.png', 'deco_moji_04.png', 'deco_moji_05.png'
+];
+
+const DECORATION_ASSETS_CHIBI = [
+  'chibi_01.png', 'chibi_02.png', 'chibi_03.png', 'chibi_04.png', 'chibi_05.png',
+  'chibi_06.png', 'chibi_07.png', 'chibi_08.png', 'chibi_09.png', 'chibi_10.png'
+];
+
+const pickRandom = <T,>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
+
+const loadImage = (src: string) =>
+  new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+    img.src = src;
+  });
+
 interface Props {
   vrm: VRM | null;
   selectedModelId: string;
   onExit: () => void;
   onVrmChange: (model: BuiltinModel) => Promise<void>;
 }
-
 
 const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -36,8 +58,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   const [isSharing, setIsSharing] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
-
-  const MIKU_COLOR = '#39C5BB';
+  const [isDecorating, setIsDecorating] = useState(false);
 
   // Use Ref for transformation to avoid re-triggering the useEffect
   const transformRef = useRef({
@@ -49,12 +70,10 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     scale: 1.0
   });
 
-  // removed duplicate isDragging and lastMousePos refs
   const currentModel = BUILTIN_MODELS.find(m => m.id === selectedModelId);
-
   const [isCameraReady, setIsCameraReady] = useState(false);
 
-  // --- Camera Init Effect (Runs Once) ---
+  // --- Camera Init Effect ---
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -77,7 +96,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     };
   }, []);
 
-  // --- Render Loop Effect (Restarts on VRM change) ---
+  // --- Render Loop Effect ---
   useEffect(() => {
     let alive = true;
     if (!isCameraReady) return;
@@ -92,14 +111,11 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
       vrmService.resetToCorrectedPose(vrm);
     }
 
-    // Capture base scale for relative scaling
     const baseScale = vrm ? vrm.scene.scale.x : 1.0;
-    
-    // FPS Throttling for Face/Hands
     let lastFaceFrame = 0;
     let lastHandFrame = 0;
-    const FACE_INTERVAL = 1000 / 15; // 15 FPS
-    const HAND_INTERVAL = 1000 / 20; // 20 FPS
+    const FACE_INTERVAL = 1000 / 15;
+    const HAND_INTERVAL = 1000 / 20;
 
     const loop = (t: number) => {
       if (!alive) return;
@@ -115,8 +131,6 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
 
         if (vrm) {
           const now = performance.now();
-          
-          // Face (Throttled)
           if (now - lastFaceFrame > FACE_INTERVAL) {
             lastFaceFrame = now;
             const faceResult = poseService.detectFace(v, t);
@@ -125,7 +139,6 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
             }
           }
 
-          // Hands (Throttled)
           if (now - lastHandFrame > HAND_INTERVAL) {
             lastHandFrame = now;
             const handResult = poseService.detectHands(v, t);
@@ -140,9 +153,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
             }
           }
 
-          // Pose
           const enableBodyTracking = currentModel?.enablePhotoBoothBodyTracking !== false;
-
           if (enableBodyTracking) {
             const poseResult = (Pose as any).solve(worldLandmarks, landmarks, { runtime: 'mediapipe', video: v });
             if (poseResult) {
@@ -150,11 +161,9 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
               vrmService.applyPose(vrm, poseResult, 0.5);
               idlePoseAppliedRef.current = false;
             } else if (lastPoseRef.current) {
-              // Smoothly hold the last pose
               vrmService.applyPose(vrm, lastPoseRef.current, 0.05);
             }
           } else {
-            // Body tracking disabled for this model in PhotoBooth
             if (vrm && currentModel?.photoBoothIdlePose && !idlePoseAppliedRef.current) {
               vrmService.applyCorrectionPose(vrm, currentModel.photoBoothIdlePose, true);
               idlePoseAppliedRef.current = true;
@@ -162,7 +171,6 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
           }
         }
       } else {
-        // Nobody in frame - use corrected rest pose
         if (vrm && vrm.humanoid) {
           lastPoseRef.current = null;
           if (currentModel?.photoBoothIdlePose) {
@@ -174,12 +182,8 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
         }
       }
 
-      // Always apply transform and render
       if (vrm) {
         const tf = transformRef.current;
-        
-        // VRM 0.0 models face +Z, VRM 1.0 models face -Z.
-        // Adjust base rotation so they always face the camera.
         const isVrm0 = vrm.meta?.metaVersion === '0';
         const baseRotY = isVrm0 ? Math.PI : 0;
 
@@ -212,7 +216,6 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   const [isDragging, setIsDragging] = useState(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
 
-  // --- Pointer event handlers ---
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     isDraggingRef.current = true;
     setIsDragging(true);
@@ -222,19 +225,15 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDraggingRef.current) return;
-    
     const dx = e.clientX - lastMousePos.current.x;
     const dy = e.clientY - lastMousePos.current.y;
     lastMousePos.current = { x: e.clientX, y: e.clientY };
 
     if (e.shiftKey) {
-      // Horizontal rotation (Y axis)
       transformRef.current.rotY += dx * 0.01;
     } else if (e.ctrlKey) {
-      // Vertical rotation (X axis)
       transformRef.current.rotX += dy * 0.01;
     } else {
-      // Position
       transformRef.current.x += dx * 0.005;
       transformRef.current.y -= dy * 0.005;
     }
@@ -254,7 +253,6 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     transformRef.current.scale = Math.max(0.1, Math.min(3.0, transformRef.current.scale + delta));
   }, []);
 
-  // --- Model selection ---
   const handleSelectBuiltin = async (model: BuiltinModel) => {
     setIsLoadingModel(true);
     setModelError(null);
@@ -302,18 +300,14 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
 
   const handleShare = async () => {
     if (!capturedImage) return;
-
     setIsSharing(true);
     setShareError(null);
-
     try {
       const url = await uploadService.uploadImage(capturedImage);
       setShareUrl(url);
     } catch (e) {
       console.error('Share failed', e);
-      setShareError(
-        '写真のアップロードに失敗しました。外部通信が許可されているか、file.io / uguu.se にアクセスできるか確認してください。'
-      );
+      setShareError('写真のアップロードに失敗しました。外部通信またはuguu.seへの接続を確認してください。');
     } finally {
       setIsSharing(false);
     }
@@ -334,27 +328,22 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
 
   const drawStylizedText = (ctx: CanvasRenderingContext2D, w: number, h: number, modelId: string) => {
     ctx.save();
-    
     const fontScale = w / 1280;
-    
-    // Main Title: "HATSUNE MIKU ♫"
     const x = 60 * fontScale;
     const y = 120 * fontScale;
+    const title = 'HATSUNE MIKU';
     
     ctx.font = `black ${90 * fontScale}px "Outfit", sans-serif`;
     ctx.letterSpacing = "2px";
-    
-    // Glow layers
     ctx.shadowBlur = 30 * fontScale;
     ctx.shadowColor = MIKU_COLOR;
     ctx.fillStyle = MIKU_COLOR;
-    ctx.fillText('初音ミク♫', x, y);
+    ctx.fillText(title, x, y);
     
     ctx.shadowBlur = 15 * fontScale;
     ctx.shadowColor = 'white';
-    ctx.fillText('初音ミク♫', x, y);
+    ctx.fillText(title, x, y);
     
-    // Gradient and Outline
     const grad = ctx.createLinearGradient(x, y - 60 * fontScale, x, y);
     grad.addColorStop(0, '#ffffff');
     grad.addColorStop(1, MIKU_COLOR);
@@ -362,18 +351,16 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     ctx.fillStyle = grad;
     ctx.strokeStyle = 'white';
     ctx.lineWidth = 4 * fontScale;
-    ctx.strokeText('初音ミク♫', x, y);
-    ctx.fillText('初音ミク♫', x, y);
+    ctx.strokeText(title, x, y);
+    ctx.fillText(title, x, y);
 
-    // Subtle music notes
     ctx.font = `${40 * fontScale}px "Outfit", sans-serif`;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
     ctx.shadowColor = MIKU_COLOR;
     ctx.shadowBlur = 15 * fontScale;
-    ctx.fillText('♪', x + 280 * fontScale, y - 30 * fontScale);
-    ctx.fillText('♫', x + 310 * fontScale, y - 50 * fontScale);
+    ctx.fillText('♪', x + 340 * fontScale, y - 30 * fontScale);
+    ctx.fillText('♫', x + 380 * fontScale, y - 55 * fontScale);
 
-    // Bottom-right: Event name + date
     const now = new Date();
     const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
     const eventName = 'なんでも生成AI展示会 Vol.5';
@@ -391,14 +378,10 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     ctx.shadowBlur = 8 * fontScale;
     ctx.fillText(dateStr, w - 40 * fontScale, h - 40 * fontScale);
 
-    // Bottom-left: Credits
     const selectedBuiltin = BUILTIN_MODELS.find(m => m.id === modelId);
-    let creditText = '';
-    if (selectedBuiltin && selectedBuiltin.author && selectedBuiltin.author !== 'Unknown') {
-      creditText = `Model Author: ${selectedBuiltin.author}`;
-    } else {
-      creditText = `Model: Custom VRM`;
-    }
+    const creditText = selectedBuiltin?.author && selectedBuiltin.author !== 'Unknown' 
+      ? `Model Author: ${selectedBuiltin.author}` 
+      : `Model: Custom VRM`;
 
     ctx.textAlign = 'left';
     ctx.font = `bold ${16 * fontScale}px "Outfit", "Noto Sans JP", sans-serif`;
@@ -406,14 +389,12 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur = 4 * fontScale;
     ctx.fillText(creditText, 30 * fontScale, h - 30 * fontScale);
-
     ctx.restore();
   };
 
   const capturePhoto = () => {
     const video = videoRef.current;
     if (!video) return;
-
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = video.videoWidth;
     tempCanvas.height = video.videoHeight;
@@ -421,50 +402,25 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     if (!ctx) return;
 
     const finalizePhoto = async () => {
-      // 3. Purikura-style Decorations
-      const DECORATION_ASSETS_MOJI = [
-        'mohi01.png', 'mohi02.png', 'mohi03.png', 'mohi05.png', 'moji04.png'
-      ];
-      const DECORATION_ASSETS_CHIBI = [
-        'Cute_chibi_Hatsune_Miku_character_icon_design_sup-1777983987911_attr1_subject.png',
-        'One_cute_chibi_Hatsune_Miku_in_V-sign_peace_pose_-1777984102071_attr1_subject.png',
-        'One_cute_chibi_Hatsune_Miku_making_peace_sign_V-po-1777984229056_attr1_subject.png',
-        'One_cute_chibi_Hatsune_Miku_making_peace_sign_V-po-1777984403861_attr1_subject.png',
-        'One_cute_chibi_Hatsune_Miku_sticker_with_curious_q-1777985102937_attr1_subject.png',
-        'Single_adorable_chibi_Hatsune_Miku_character_in_ch-1777984138130_attr1_subject.png',
-        'Single_adorable_chibi_Hatsune_Miku_character_in_ch-1777984269027_attr1_subject.png',
-        'Single_adorable_chibi_Hatsune_Miku_character_in_dy-1777983991177_attr1_subject.png',
-        'Single_chibi-style_Hatsune_Miku_in_excited_jumping-1777983993934_attr1_subject.png',
-        'Single_chibi-style_Hatsune_Miku_sticker_with_sad_c-1777985050315_attr1_subject.png'
-      ];
-
-      const randomMoji = DECORATION_ASSETS_MOJI[Math.floor(Math.random() * DECORATION_ASSETS_MOJI.length)];
-      const randomChibi = DECORATION_ASSETS_CHIBI[Math.floor(Math.random() * DECORATION_ASSETS_CHIBI.length)];
-
-      const loadImg = (src: string) => new Promise<HTMLImageElement>((resolve) => {
-        const i = new Image();
-        i.onload = () => resolve(i);
-        i.src = src;
-      });
-
+      setIsDecorating(true);
       try {
+        const randomMoji = pickRandom(DECORATION_ASSETS_MOJI);
+        const randomChibi = pickRandom(DECORATION_ASSETS_CHIBI);
+
         const [imgMoji, imgChibi] = await Promise.all([
-          loadImg(`/photo/${randomMoji}`),
-          loadImg(`/photo/${randomChibi}`)
+          loadImage(`/photo/${randomMoji}`),
+          loadImage(`/photo/${randomChibi}`)
         ]);
 
-        // Draw Moji (Top Left)
         const mojiSize = tempCanvas.height * 0.3;
         ctx.drawImage(imgMoji, 20, 5, mojiSize, mojiSize);
 
-        // Draw Chibi (Top Right)
         const chibiSize = tempCanvas.height * 0.35;
         ctx.drawImage(imgChibi, tempCanvas.width - chibiSize - 20, 20, chibiSize, chibiSize);
       } catch (e) {
         console.warn('Failed to load decorations', e);
       }
 
-      // 4. Corner frame accents
       const cLen = 60;
       const pad = 12;
       ctx.strokeStyle = MIKU_COLOR;
@@ -478,20 +434,17 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
       ctx.lineWidth = 1;
       ctx.strokeRect(pad + 2, pad + 2, tempCanvas.width - (pad + 2) * 2, tempCanvas.height - (pad + 2) * 2);
 
-      // 5. Stylized text
       drawStylizedText(ctx, tempCanvas.width, tempCanvas.height, selectedModelId);
-
       setCapturedImage(tempCanvas.toDataURL('image/png'));
+      setIsDecorating(false);
     };
 
-    // 1. Camera background (mirrored)
     ctx.save();
     ctx.scale(-1, 1);
     ctx.translate(-tempCanvas.width, 0);
     ctx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
     ctx.restore();
 
-    // 2. VRM canvas via vrmService
     const vrmDataUrl = vrmService.takeScreenshot();
     if (vrmDataUrl) {
       const img = new Image();
@@ -515,15 +468,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
 
   return (
     <div className="absolute inset-0 overflow-hidden">
-      {/* Background Video */}
-      <video 
-        ref={videoRef} 
-        className="absolute inset-0 w-full h-full object-cover scale-x-[-1] z-0" 
-        muted 
-        playsInline 
-      />
-
-      {/* Transparent interaction layer — above 3D canvas, captures pointer/wheel */}
+      <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover scale-x-[-1] z-0" muted playsInline />
       <div
         className={`absolute inset-0 z-[60] ${countdown !== null ? 'pointer-events-none' : ''}`}
         style={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
@@ -534,27 +479,18 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
         onWheel={handleWheel}
       />
 
-      {/* Flash */}
       <AnimatePresence>
-        {isFlash && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-white z-[200]"
-          />
-        )}
+        {isFlash && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-white z-[200]" />}
       </AnimatePresence>
 
-      {/* UI Overlay */}
       <div className="absolute inset-0 z-[100] pointer-events-none flex flex-col justify-between p-8">
         <div className="flex justify-between items-start pointer-events-auto">
-
-          {/* Info Panel */}
           <div className="bg-black/70 backdrop-blur-xl p-5 rounded-3xl border border-white/10 text-white shadow-2xl">
             <h2 className="text-2xl font-black flex items-center gap-3 tracking-tighter">
               <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: MIKU_COLOR }} />
               PHOTO BOOTH
             </h2>
-            <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] mt-1 font-bold">初音ミクと記念撮影</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] mt-1 font-bold">初音ミクとプリクラ風記念撮影</p>
             <p className={`text-[9px] mt-3 font-mono px-2 py-1 rounded bg-black/40 ${status.startsWith('ERROR') ? 'text-rose-400' : 'text-cyan-400'}`}>
               STATUS: {status}
             </p>
@@ -565,97 +501,47 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
               <div className="flex items-center gap-2"><Maximize size={12} /> Wheel: 拡大・縮小</div>
             </div>
             
-            {/* Model selector */}
             <div className="mt-4 border-t border-white/10 pt-4">
-              <button
-                onClick={() => setShowModelPanel(p => !p)}
-                className="w-full flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-widest text-cyan-300 hover:text-white transition-colors"
-              >
+              <button onClick={() => setShowModelPanel(p => !p)} className="w-full flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-widest text-cyan-300 hover:text-white transition-colors">
                 <span className="flex items-center gap-1"><User size={10} /> MODEL SELECT</span>
                 <ChevronDown size={10} className={`transition-transform ${showModelPanel ? 'rotate-180' : ''}`} />
               </button>
-
               <AnimatePresence>
                 {showModelPanel && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden mt-3"
-                  >
-                    <ModelSelector 
-                      selectedModelId={selectedModelId}
-                      isLoading={isLoadingModel}
-                      onSelect={handleSelectBuiltin}
-                      onUploadClick={() => fileInputRef.current?.click()}
-                    />
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden mt-3">
+                    <ModelSelector selectedModelId={selectedModelId} isLoading={isLoadingModel} onSelect={handleSelectBuiltin} onUploadClick={() => fileInputRef.current?.click()} />
                     <input ref={fileInputRef} type="file" accept=".vrm" className="hidden" onChange={handleCustomVRM} />
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              {isLoadingModel && (
-                <p className="text-[9px] text-cyan-400 animate-pulse mt-2 flex items-center gap-2">
-                  <RefreshCw size={10} className="animate-spin" /> Loading model...
-                </p>
-              )}
-
-              {modelError && (
-                <p className="text-[9px] text-rose-400 mt-2 flex items-center gap-1 font-bold">
-                  ⚠️ {modelError}
-                </p>
-              )}
+              {isLoadingModel && <p className="text-[9px] text-cyan-400 animate-pulse mt-2 flex items-center gap-2"><RefreshCw size={10} className="animate-spin" /> Loading model...</p>}
+              {modelError && <p className="text-[9px] text-rose-400 mt-2 flex items-center gap-1 font-bold">⚠️ {modelError}</p>}
             </div>
           </div>
 
-          {/* Close button */}
-          <button 
-            onClick={onExit}
-            className="w-14 h-14 bg-black/70 backdrop-blur-xl rounded-full flex items-center justify-center text-white border border-white/10 hover:bg-rose-500 transition-all active:scale-90 shadow-2xl"
-          >
+          <button onClick={onExit} className="w-14 h-14 bg-black/70 backdrop-blur-xl rounded-full flex items-center justify-center text-white border border-white/10 hover:bg-rose-500 transition-all active:scale-90 shadow-2xl">
             <X size={28} />
           </button>
         </div>
 
-        {/* Countdown */}
         {countdown !== null && (
-          <motion.div 
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1.5, opacity: 1 }}
-            className="text-[240px] font-black text-white self-center select-none bg-black/30 backdrop-blur-sm rounded-[3rem] px-16 py-8"
-            style={{ textShadow: `0 0 40px ${MIKU_COLOR}, 0 0 80px rgba(0,0,0,0.8), 0 0 10px rgba(255,255,255,0.5)` }}
-          >
+          <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1.5, opacity: 1 }} className="text-[240px] font-black text-white self-center select-none bg-black/30 backdrop-blur-sm rounded-[3rem] px-16 py-8" style={{ textShadow: `0 0 40px ${MIKU_COLOR}, 0 0 80px rgba(0,0,0,0.8), 0 0 10px rgba(255,255,255,0.5)` }}>
             {countdown === 0 ? 'SHOT!' : countdown}
           </motion.div>
         )}
 
-        {/* Bottom buttons */}
         <div className="flex flex-col items-center justify-center pointer-events-auto pb-12 gap-6">
           {!capturedImage ? (
-            <button 
-              onClick={startCapture}
-              disabled={countdown !== null}
-              className="group relative px-16 py-8 bg-white text-black font-black text-3xl rounded-full overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_0_60px_rgba(57,197,187,0.4)] disabled:opacity-30 disabled:grayscale disabled:scale-100"
-            >
+            <button onClick={startCapture} disabled={countdown !== null} className="group relative px-16 py-8 bg-white text-black font-black text-3xl rounded-full overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_0_60px_rgba(57,197,187,0.4)] disabled:opacity-30 disabled:grayscale disabled:scale-100">
               <div className="absolute inset-0 transition-opacity opacity-0 group-hover:opacity-100" style={{ background: `linear-gradient(45deg, ${MIKU_COLOR}, #ffffff)` }} />
-              <span className="relative z-10 flex items-center gap-4 group-hover:text-cyan-900">
-                <Camera size={40} /> TAKE PHOTO
-              </span>
+              <span className="relative z-10 flex items-center gap-4 group-hover:text-cyan-900"><Camera size={40} /> TAKE PHOTO</span>
             </button>
           ) : (
             <div className="flex gap-6">
-              <button 
-                onClick={() => {
-                  setCapturedImage(null);
-                  setShareUrl(null);
-                }}
-                className="px-10 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold rounded-3xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl"
-              >
+              <button onClick={() => { setCapturedImage(null); setShareUrl(null); }} className="px-10 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold rounded-3xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl">
                 <RefreshCw size={24} /> RETAKE
               </button>
-              <button 
-                onClick={downloadPhoto}
-                className="px-16 py-5 text-white font-black text-2xl rounded-3xl flex items-center gap-4 transition-all shadow-[0_0_40px_rgba(57,197,187,0.6)] hover:brightness-110 active:scale-95"
-                style={{ backgroundColor: MIKU_COLOR }}
-              >
+              <button onClick={downloadPhoto} className="px-16 py-5 text-white font-black text-2xl rounded-3xl flex items-center gap-4 transition-all shadow-[0_0_40px_rgba(57,197,187,0.6)] hover:brightness-110 active:scale-95" style={{ backgroundColor: MIKU_COLOR }}>
                 <Download size={32} /> SAVE PHOTO
               </button>
             </div>
@@ -663,131 +549,51 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
         </div>
       </div>
 
-      {/* Captured Image Preview */}
+      <AnimatePresence>
+        {isDecorating && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[180] bg-black/60 backdrop-blur-sm flex items-center justify-center text-white text-4xl font-black italic tracking-widest">
+            デコ中...
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {capturedImage && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 z-[120] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-8"
-          >
-            <motion.div 
-              initial={{ scale: 0.8, y: 20 }} animate={{ scale: 1, y: 0 }}
-              className="relative max-w-5xl w-full bg-neutral-900 p-3 rounded-[2rem] shadow-[0_0_100px_rgba(57,197,187,0.3)] border border-white/5"
-            >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[120] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-8">
+            <motion.div initial={{ scale: 0.8, y: 20 }} animate={{ scale: 1, y: 0 }} className="relative max-w-5xl w-full bg-neutral-900 p-3 rounded-[2rem] shadow-[0_0_100px_rgba(57,197,187,0.3)] border border-white/5">
               <img src={capturedImage} alt="Captured" className="w-full h-auto rounded-2xl" />
-              <button 
-                onClick={() => {
-                  setCapturedImage(null);
-                  setShareUrl(null);
-                }}
-                className="absolute -top-6 -right-6 w-16 h-16 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-2xl border-4 border-neutral-900 transition-transform hover:rotate-90 active:scale-90"
-              >
-                <X size={32} />
-              </button>
+              <button onClick={() => { setCapturedImage(null); setShareUrl(null); }} className="absolute -top-6 -right-6 w-16 h-16 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-2xl border-4 border-neutral-900 transition-transform hover:rotate-90 active:scale-90"><X size={32} /></button>
             </motion.div>
             <div className="mt-12 flex gap-8 pointer-events-auto">
-              <button 
-                onClick={() => {
-                  setCapturedImage(null);
-                  setShareUrl(null);
-                }}
-                className="px-12 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold text-xl rounded-2xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl"
-              >
-                <RefreshCw size={24} /> RETAKE
-              </button>
-
-              <button
-                onClick={handleShare}
-                disabled={isSharing}
-                className={`px-12 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold text-xl rounded-2xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl ${isSharing ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {isSharing ? (
-                  <RefreshCw size={24} className="animate-spin" />
-                ) : (
-                  <Share2 size={24} />
-                )}
+              <button onClick={() => { setCapturedImage(null); setShareUrl(null); }} className="px-12 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold text-xl rounded-2xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl"><RefreshCw size={24} /> RETAKE</button>
+              <button onClick={handleShare} disabled={isSharing} className={`px-12 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold text-xl rounded-2xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl ${isSharing ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                {isSharing ? <RefreshCw size={24} className="animate-spin" /> : <Share2 size={24} />}
                 <span>QR SHARE</span>
               </button>
-
-              <button 
-                onClick={downloadPhoto}
-                className="px-20 py-5 text-white font-black text-2xl rounded-2xl flex items-center gap-4 transition-all shadow-2xl"
-                style={{ backgroundColor: MIKU_COLOR }}
-              >
-                <Download size={32} /> DOWNLOAD NOW
-              </button>
+              <button onClick={downloadPhoto} className="px-20 py-5 text-white font-black text-2xl rounded-2xl flex items-center gap-4 transition-all shadow-2xl" style={{ backgroundColor: MIKU_COLOR }}><Download size={32} /> DOWNLOAD NOW</button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* QR Code Modal */}
       <AnimatePresence>
         {shareUrl && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 pointer-events-auto"
-            onClick={() => setShareUrl(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-gray-900 border border-white/10 rounded-3xl p-8 max-w-sm w-full text-center relative"
-              onClick={e => e.stopPropagation()}
-            >
-              <button
-                onClick={() => setShareUrl(null)}
-                className="absolute top-4 right-4 text-white/50 hover:text-white"
-              >
-                <X className="w-6 h-6" />
-              </button>
-
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 pointer-events-auto" onClick={() => setShareUrl(null)}>
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-gray-900 border border-white/10 rounded-3xl p-8 max-w-sm w-full text-center relative" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setShareUrl(null)} className="absolute top-4 right-4 text-white/50 hover:text-white"><X className="w-6 h-6" /></button>
               <h3 className="text-2xl font-bold text-white mb-2">QR SHARE</h3>
-
-              <p className="text-white/60 mb-6 text-sm">
-                スマホで読み取ると写真をダウンロードできます。<br />
-                画像は一時保存され、一定時間後に自動削除されます。
-              </p>
-
+              <p className="text-white/60 mb-6 text-sm">スマホで読み取ると写真をダウンロードできます。<br />画像は一時保存され、一定時間後に自動削除されます。</p>
               <div className="p-1.5 rounded-[2.8rem] inline-block mb-6 shadow-2xl relative overflow-hidden bg-gradient-to-br from-[#39C5BB] via-[#FF007F] to-[#00A39C]">
-                <div className="bg-[#FF007F] p-6 rounded-[2.5rem] relative z-10">
-                  <QRCodeCanvas
-                    value={shareUrl}
-                    size={260}
-                    level="H"
-                    bgColor="#FF007F"
-                    fgColor="#FFFFFF"
-                    imageSettings={{
-                      src: '/Chibi-style_Hatsune_Miku_adorable_icon_illustratio-1777978579165.png',
-                      width: 60,
-                      height: 60,
-                      excavate: true,
-                    }}
-                  />
-
-                  {/* Decorative scanning line effect */}
+                <div className="bg-white p-6 rounded-[2.5rem] relative z-10">
+                  <QRCodeCanvas value={shareUrl} size={260} level="H" includeMargin={true} bgColor="#FFFFFF" fgColor="#111111" imageSettings={{ src: '/Chibi-style_Hatsune_Miku_adorable_icon_illustratio-1777978579165.png', width: 52, height: 52, excavate: true }} />
                   <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[2.5rem]">
-                    <div className="w-full h-1.5 bg-white/60 absolute top-0 animate-[scan_3s_linear_infinite]" />
+                    <div className="w-full h-1.5 bg-cyan-400/30 absolute top-0 animate-[scan_3s_linear_infinite]" />
                   </div>
                 </div>
               </div>
-
-              <div className="text-white/40 text-xs mt-2 break-all px-4">
-                {shareUrl}
-              </div>
-              
-              <p className="text-white/30 text-[10px] mt-4 uppercase tracking-widest">
-                Temporary public share / Expires automatically
-              </p>
-
-              {shareError && (
-                <p className="mt-4 text-sm text-rose-400 font-bold">
-                  {shareError}
-                </p>
-              )}
+              <div className="text-white/40 text-xs mt-2 break-all px-4">{shareUrl}</div>
+              <p className="text-white/30 text-[10px] mt-4 uppercase tracking-widest">Temporary public share / Expires automatically</p>
+              {shareError && <p className="mt-4 text-sm text-rose-400 font-bold">{shareError}</p>}
             </motion.div>
           </motion.div>
         )}
