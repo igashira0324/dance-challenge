@@ -1,3 +1,4 @@
+// PHOTOBOOTH_FINAL_VERSION_V2
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { VRM } from '@pixiv/three-vrm';
 import { Pose, Hand } from 'kalidokit';
