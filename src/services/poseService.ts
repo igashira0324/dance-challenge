@@ -8,6 +8,7 @@ class PoseService {
 
   private initPromise: Promise<void> | null = null;
   private startPromise: Promise<void> | null = null;
+  private cameraGeneration: number = 0;
 
   private lastPoseTs: number = 0;
   private lastFaceTs: number = 0;
@@ -81,21 +82,30 @@ class PoseService {
   }
 
   async startCamera(videoElement: HTMLVideoElement): Promise<void> {
+    const generation = ++this.cameraGeneration;
+
     if (this.startPromise) {
-      return this.startPromise;
+      try {
+        await this.startPromise;
+      } catch {
+        // Ignore failures of previous generations
+      }
     }
 
-    this.startPromise = this.doStartCamera(videoElement);
+    const promise = this.doStartCamera(videoElement, generation);
+    this.startPromise = promise;
 
     try {
-      await this.startPromise;
+      await promise;
     } finally {
-      this.startPromise = null;
+      if (this.startPromise === promise) {
+        this.startPromise = null;
+      }
     }
   }
 
-  private async doStartCamera(videoElement: HTMLVideoElement): Promise<void> {
-    await this.stopCamera(videoElement, { delay: false });
+  private async doStartCamera(videoElement: HTMLVideoElement, generation: number): Promise<void> {
+    await this.stopCamera(videoElement, { delay: false, invalidate: false });
 
     const tryGetCamera = async (width: number, height: number): Promise<MediaStream> => {
       return await navigator.mediaDevices.getUserMedia({
@@ -104,15 +114,23 @@ class PoseService {
       });
     };
 
+    let stream: MediaStream | null = null;
+
     try {
       try {
-        this.stream = await tryGetCamera(1280, 720);
+        stream = await tryGetCamera(1280, 720);
       } catch (e) {
         console.warn("PoseService: 720p failed, falling back to 360p", e);
-        this.stream = await tryGetCamera(640, 360);
+        stream = await tryGetCamera(640, 360);
       }
 
-      videoElement.srcObject = this.stream;
+      if (generation !== this.cameraGeneration) {
+        stream.getTracks().forEach(track => track.stop());
+        throw new DOMException("Camera start aborted", "AbortError");
+      }
+
+      this.stream = stream;
+      videoElement.srcObject = stream;
       videoElement.muted = true;
       videoElement.playsInline = true;
 
@@ -129,6 +147,9 @@ class PoseService {
 
         videoElement.onloadedmetadata = async () => {
           try {
+            if (generation !== this.cameraGeneration) {
+              throw new DOMException("Camera start aborted", "AbortError");
+            }
             await videoElement.play();
             window.clearTimeout(timeout);
             cleanup();
@@ -147,7 +168,10 @@ class PoseService {
         };
       });
     } catch (err) {
-      console.error("PoseService: All camera access attempts failed", err);
+      if (stream && stream !== this.stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      console.error("PoseService: Camera start failed", err);
       throw err;
     }
   }
@@ -185,7 +209,11 @@ class PoseService {
     }
   }
 
-  async stopCamera(videoElement?: HTMLVideoElement, options: { delay?: boolean } = { delay: true }) {
+  async stopCamera(videoElement?: HTMLVideoElement, options: { delay?: boolean, invalidate?: boolean } = { delay: true, invalidate: true }) {
+    if (options.invalidate !== false) {
+      this.cameraGeneration++;
+    }
+
     if (videoElement) {
       videoElement.pause();
       videoElement.srcObject = null;

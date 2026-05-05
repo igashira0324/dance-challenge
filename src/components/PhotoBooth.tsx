@@ -73,7 +73,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
 
   const currentModel = BUILTIN_MODELS.find(m => m.id === selectedModelId);
 
-  // --- Camera Init Effect (Granular & Robust) ---
+  // --- Camera Init Effect (Generation-aware & Abort-safe) ---
   useEffect(() => {
     let alive = true;
     const video = videoRef.current;
@@ -95,6 +95,13 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
         setStatus('Ready');
       } catch (e: any) {
         if (!alive) return;
+        
+        // Ignore AbortError from generation-based cancellation
+        if (e?.name === 'AbortError') {
+          console.log('Camera init aborted');
+          return;
+        }
+
         console.error('PhotoBooth camera init failed:', e);
         const message = e?.name === 'NotAllowedError'
           ? 'ERROR: Camera permission denied'
@@ -282,7 +289,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
       await onVrmChange(model);
     } catch (e) {
       console.warn('Model load failed', e);
-      setModelError('モデルの読み込みに失敗しました');
+      setModelError('モデルの読み込みに失敗しました。別のモデルを選択してください。');
     } finally {
       setIsLoadingModel(false);
     }
@@ -307,7 +314,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
       await onVrmChange(customModel);
     } catch (e) {
       console.warn('Custom model load failed', e);
-      setModelError('カスタムVRMの読み込みに失敗しました');
+      setModelError('カスタムVRMの読み込みに失敗しました。ファイル形式を確認してください。');
     } finally {
       URL.revokeObjectURL(url);
       setIsLoadingModel(false);
@@ -323,6 +330,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     if (!capturedImage) return;
     setIsSharing(true);
     setShareError(null);
+    setShareUrl(null);
     try {
       const url = await uploadService.uploadImage(capturedImage);
       setShareUrl(url);
@@ -380,7 +388,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     ctx.shadowColor = MIKU_COLOR;
     ctx.shadowBlur = 15 * fontScale;
     ctx.fillText('♪', x + 340 * fontScale, y - 30 * fontScale);
-    ctx.fillText('♫', x + 380 * fontScale, y - 55 * fontScale);
+    ctx.fillText('✦', x + 390 * fontScale, y - 60 * fontScale);
 
     const now = new Date();
     const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
@@ -447,7 +455,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
           const chibiSize = tempCanvas.height * 0.35;
           ctx.drawImage(
             imgChibi,
-            10 * fontScale, // Even further left
+            5 * fontScale, // Even further left
             tempCanvas.height - chibiSize - 25 * fontScale, // Even further down (sitting closer to credit text)
             chibiSize,
             chibiSize
@@ -476,22 +484,28 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
       }
     };
 
+    // 1. Camera background (mirrored)
     ctx.save();
     ctx.scale(-1, 1);
     ctx.translate(-tempCanvas.width, 0);
     ctx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
     ctx.restore();
 
+    // 2. VRM canvas screenshot overlay
     const vrmDataUrl = vrmService.takeScreenshot();
     if (vrmDataUrl) {
       const img = new Image();
       img.onload = () => {
         ctx.drawImage(img, 0, 0, tempCanvas.width, tempCanvas.height);
-        finalizePhoto();
+        void finalizePhoto();
+      };
+      img.onerror = () => {
+        console.warn('Failed to load VRM screenshot. Continuing without VRM overlay.');
+        void finalizePhoto();
       };
       img.src = vrmDataUrl;
     } else {
-      finalizePhoto();
+      void finalizePhoto();
     }
   };
 
@@ -527,15 +541,15 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
               <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: MIKU_COLOR }} />
               PHOTO BOOTH
             </h2>
-            <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] mt-1 font-bold">初音ミクとプリクラ風記念撮影</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] mt-1 font-bold">MIKU PURIKURA MODE</p>
             <p className={`text-[9px] mt-3 font-mono px-2 py-1 rounded bg-black/40 ${status.startsWith('ERROR') ? 'text-rose-400' : 'text-cyan-400'}`}>
               STATUS: {status}
             </p>
             <div className="flex flex-col gap-2 mt-4 text-[11px] font-mono opacity-80">
-              <div className="flex items-center gap-2"><Move size={12} /> Drag: 位置移動</div>
-              <div className="flex items-center gap-2"><RotateCw size={12} /> Shift+Drag: 左右回転</div>
-              <div className="flex items-center gap-2"><RotateCw size={12} /> Ctrl+Drag: 上下回転</div>
-              <div className="flex items-center gap-2"><Maximize size={12} /> Wheel: 拡大・縮小</div>
+              <div className="flex items-center gap-2"><Move size={12} /> Drag: 移動</div>
+              <div className="flex items-center gap-2"><RotateCw size={12} /> Shift+Drag: 横回転</div>
+              <div className="flex items-center gap-2"><RotateCw size={12} /> Ctrl+Drag: 縦回転</div>
+              <div className="flex items-center gap-2"><Maximize size={12} /> Wheel: 拡大縮小</div>
             </div>
             
             <div className="mt-4 border-t border-white/10 pt-4">
@@ -571,23 +585,26 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
           {!capturedImage ? (
             <button
               onClick={startCapture}
-              disabled={countdown !== null || !isCameraReady}
+              disabled={countdown !== null || !isCameraReady || isDecorating}
               className="group relative px-16 py-8 bg-white text-black font-black text-3xl rounded-full overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_0_60px_rgba(57,197,187,0.4)] disabled:opacity-30 disabled:grayscale disabled:scale-100"
             >
               <div className="absolute inset-0 transition-opacity opacity-0 group-hover:opacity-100" style={{ background: `linear-gradient(45deg, ${MIKU_COLOR}, #ffffff)` }} />
               <span className="relative z-10 flex items-center gap-4 group-hover:text-cyan-900">
                 <Camera size={40} />
-                {isCameraReady ? 'TAKE PHOTO' : 'CAMERA LOADING...'}
+                {isDecorating ? 'DECORATING...' : isCameraReady ? 'TAKE PHOTO' : 'CAMERA LOADING...'}
               </span>
             </button>
           ) : (
-            <div className="flex gap-6">
-              <button onClick={() => { setCapturedImage(null); setShareUrl(null); }} className="px-10 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold rounded-3xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl">
-                <RefreshCw size={24} /> RETAKE
-              </button>
-              <button onClick={downloadPhoto} className="px-16 py-5 text-white font-black text-2xl rounded-3xl flex items-center gap-4 transition-all shadow-[0_0_40px_rgba(57,197,187,0.6)] hover:brightness-110 active:scale-95" style={{ backgroundColor: MIKU_COLOR }}>
-                <Download size={32} /> SAVE PHOTO
-              </button>
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex gap-6">
+                <button onClick={() => { setCapturedImage(null); setShareUrl(null); setShareError(null); }} className="px-10 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold rounded-3xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl">
+                  <RefreshCw size={24} /> RETAKE
+                </button>
+                <button onClick={downloadPhoto} className="px-16 py-5 text-white font-black text-2xl rounded-3xl flex items-center gap-4 transition-all shadow-[0_0_40px_rgba(57,197,187,0.6)] hover:brightness-110 active:scale-95" style={{ backgroundColor: MIKU_COLOR }}>
+                  <Download size={32} /> SAVE PHOTO
+                </button>
+              </div>
+              {shareError && <p className="text-sm text-rose-400 font-bold bg-black/60 px-6 py-2 rounded-full border border-rose-500/30 shadow-xl">{shareError}</p>}
             </div>
           )}
         </div>
@@ -606,10 +623,10 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[120] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-8">
             <motion.div initial={{ scale: 0.8, y: 20 }} animate={{ scale: 1, y: 0 }} className="relative max-w-5xl w-full bg-neutral-900 p-3 rounded-[2rem] shadow-[0_0_100px_rgba(57,197,187,0.3)] border border-white/5">
               <img src={capturedImage} alt="Captured" className="w-full h-auto rounded-2xl" />
-              <button onClick={() => { setCapturedImage(null); setShareUrl(null); }} className="absolute -top-6 -right-6 w-16 h-16 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-2xl border-4 border-neutral-900 transition-transform hover:rotate-90 active:scale-90"><X size={32} /></button>
+              <button onClick={() => { setCapturedImage(null); setShareUrl(null); setShareError(null); }} className="absolute -top-6 -right-6 w-16 h-16 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-2xl border-4 border-neutral-900 transition-transform hover:rotate-90 active:scale-90"><X size={32} /></button>
             </motion.div>
             <div className="mt-12 flex gap-8 pointer-events-auto">
-              <button onClick={() => { setCapturedImage(null); setShareUrl(null); }} className="px-12 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold text-xl rounded-2xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl"><RefreshCw size={24} /> RETAKE</button>
+              <button onClick={() => { setCapturedImage(null); setShareUrl(null); setShareError(null); }} className="px-12 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold text-xl rounded-2xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl"><RefreshCw size={24} /> RETAKE</button>
               <button
                 onClick={handleShare}
                 disabled={isSharing}
@@ -621,6 +638,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
               </button>
               <button onClick={downloadPhoto} className="px-20 py-5 text-white font-black text-2xl rounded-2xl flex items-center gap-4 transition-all shadow-2xl" style={{ backgroundColor: MIKU_COLOR }}><Download size={32} /> DOWNLOAD NOW</button>
             </div>
+            {shareError && <p className="mt-6 text-sm text-rose-400 font-bold bg-black/60 px-6 py-2 rounded-full border border-rose-500/30 shadow-xl">{shareError}</p>}
           </motion.div>
         )}
       </AnimatePresence>
@@ -634,7 +652,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
               <p className="text-white/60 mb-6 text-sm">スマホで読み取ると写真をダウンロードできます。<br />画像は一時保存され、一定時間後に自動削除されます。</p>
               <div className="p-1.5 rounded-[2.8rem] inline-block mb-6 shadow-2xl relative overflow-hidden bg-gradient-to-br from-[#39C5BB] via-[#FF007F] to-[#00A39C]">
                 <div className="bg-white p-6 rounded-[2.5rem] relative z-10">
-                  <QRCodeCanvas value={shareUrl} size={260} level="H" includeMargin={true} bgColor="#FFFFFF" fgColor="#111111" imageSettings={{ src: '/Chibi-style_Hatsune_Miku_adorable_icon_illustratio-1777978579165.png', width: 52, height: 52, excavate: true }} />
+                  <QRCodeCanvas value={shareUrl} size={260} level="H" includeMargin={true} bgColor="#FFFFFF" fgColor="#111111" imageSettings={{ src: '/Chibi-style_Hatsune_Miku_adorable_icon_illustratio-1777978579165.png', width: 44, height: 44, excavate: true }} />
                   <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[2.5rem]">
                     <div className="w-full h-1.5 bg-cyan-400/30 absolute top-0 animate-[scan_3s_linear_infinite]" />
                   </div>
