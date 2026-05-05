@@ -412,11 +412,20 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
           loadImage(`/photo/${randomChibi}`)
         ]);
 
+        // Draw Moji (Top Left) - Moved even further up to overlap the edge
         const mojiSize = tempCanvas.height * 0.3;
-        ctx.drawImage(imgMoji, 20, 5, mojiSize, mojiSize);
+        ctx.drawImage(imgMoji, 20, -20, mojiSize, mojiSize);
 
+        // Draw Chibi (Bottom Left, above the model name)
         const chibiSize = tempCanvas.height * 0.35;
-        ctx.drawImage(imgChibi, tempCanvas.width - chibiSize - 20, 20, chibiSize, chibiSize);
+        const fontScale = tempCanvas.width / 1280;
+        ctx.drawImage(
+          imgChibi,
+          30 * fontScale,
+          tempCanvas.height - chibiSize - 60 * fontScale,
+          chibiSize,
+          chibiSize
+        );
       } catch (e) {
         console.warn('Failed to load decorations', e);
       }
@@ -566,7 +575,12 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
             </motion.div>
             <div className="mt-12 flex gap-8 pointer-events-auto">
               <button onClick={() => { setCapturedImage(null); setShareUrl(null); }} className="px-12 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold text-xl rounded-2xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl"><RefreshCw size={24} /> RETAKE</button>
-              <button onClick={handleShare} disabled={isSharing} className={`px-12 py-5 bg-white/10 backdrop-blur-2xl text-white font-bold text-xl rounded-2xl border border-white/20 flex items-center gap-3 hover:bg-white/20 transition-all shadow-2xl ${isSharing ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              <button
+                onClick={handleShare}
+                disabled={isSharing}
+                className={`px-12 py-5 text-white font-bold text-xl rounded-2xl border border-[#FF007F]/30 flex items-center gap-3 hover:brightness-110 transition-all shadow-2xl ${isSharing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                style={{ backgroundColor: '#FF007F' }}
+              >
                 {isSharing ? <RefreshCw size={24} className="animate-spin" /> : <Share2 size={24} />}
                 <span>QR SHARE</span>
               </button>
