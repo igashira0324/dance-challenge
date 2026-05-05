@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { VRM } from '@pixiv/three-vrm';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, User } from 'lucide-react';
+import { Play } from 'lucide-react';
 
 import { vrmService } from './services/vrmService';
 import { audioEngine } from './services/audioEngine';
@@ -16,7 +16,7 @@ import { useGameEngine } from './hooks/useGameEngine';
 import { useCameraPose } from './hooks/useCameraPose';
 import { useGameLoop } from './hooks/useGameLoop';
 
-import ModelSelector from './components/ModelSelector';
+
 import { BUILTIN_MODELS, DEFAULT_MODEL_ID } from './constants/models';
 import type { BuiltinModel } from './constants/models';
 
@@ -27,9 +27,7 @@ const App = () => {
   const [vrm, setVrm] = useState<VRM | null>(null);
   const [selectedModelId, setSelectedModelId] = useState(DEFAULT_MODEL_ID);
   const [isModelLoading, setIsModelLoading] = useState(false);
-  const [modelError, setModelError] = useState<string | null>(null);
   const [isShaking, setIsShaking] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const didInitialLoadRef = useRef(false);
 
@@ -86,14 +84,12 @@ const App = () => {
   // --- Handlers ---
   const handleLoadModel = useCallback(async (model: BuiltinModel) => {
     setIsModelLoading(true);
-    setModelError(null);
     try {
       const newVrm = await vrmService.loadVRM(model.url);
       setVrm(newVrm);
       setSelectedModelId(model.id);
     } catch (e) {
       console.warn('VRM load failed', e);
-      setModelError('モデルの読み込みに失敗しました');
     } finally {
       setIsModelLoading(false);
     }
@@ -120,25 +116,6 @@ const App = () => {
     };
   }, [handleLoadModel, stopCamera]);
 
-  const handleVRMUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    setIsModelLoading(true);
-    setModelError(null);
-    try {
-      const newVrm = await vrmService.loadVRM(url);
-      setVrm(newVrm);
-      setSelectedModelId(file.name);
-    } catch (e) {
-      alert("VRMの読み込みに失敗しました");
-      setModelError('カスタムモデルの読み込みに失敗しました');
-    } finally {
-      URL.revokeObjectURL(url);
-      setIsModelLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
 
   const handleVrmChange = async (modelId: string, url: string) => {
     try {
@@ -216,23 +193,7 @@ const App = () => {
               <span className="text-sm opacity-60">Powered by WebGL & MediaPipe.</span>
             </p>
 
-            <div className="mb-8 p-4 bg-white/5 rounded-2xl border border-white/10 text-left">
-              <h3 className="text-[10px] font-black text-cyan-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                <User size={12} /> Model Selection
-              </h3>
-              <ModelSelector 
-                selectedModelId={selectedModelId}
-                isLoading={isModelLoading}
-                onSelect={handleLoadModel}
-                onUploadClick={() => fileInputRef.current?.click()}
-                variant="full"
-              />
-              {modelError && (
-                <p className="text-[10px] text-rose-400 mt-3 animate-pulse">⚠️ {modelError}</p>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 mt-8">
               {cameraError && (
                 <div className="text-rose-200 bg-rose-950/50 border border-rose-500/30 rounded-xl px-4 py-3 text-sm text-left backdrop-blur-md">
                   <p className="font-bold mb-1 flex items-center gap-2">⚠️ <span className="text-rose-400">Camera Error</span></p>
@@ -242,35 +203,34 @@ const App = () => {
                   </button>
                 </div>
               )}
-              
 
-                <button 
-                  onClick={handleStart}
-                  disabled={isStartingCamera || !vrm || isModelLoading}
-                  className="group relative w-full py-5 bg-white text-black font-black text-xl rounded-2xl overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30 disabled:grayscale"
+              <button 
+                onClick={handleStart}
+                disabled={isStartingCamera || !vrm || isModelLoading}
+                className="group relative w-full py-6 bg-white text-black font-black text-xl rounded-2xl overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30 disabled:grayscale shadow-[0_0_40px_rgba(255,255,255,0.1)]"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-rose-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <span className="relative z-10 flex items-center justify-center gap-3 group-hover:text-white transition-colors">
+                  {!vrm ? 'MODEL NOT LOADED' : isStartingCamera ? 'INITIALIZING...' : isModelLoading ? 'LOADING MODEL...' : <>START MISSION <Play size={20} fill="currentColor" /></>}
+                </span>
+              </button>
+
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  onClick={() => setGameState('PHOTO_BOOTH')}
+                  disabled={!vrm || isModelLoading}
+                  className="w-full py-5 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-200 font-bold rounded-2xl border border-fuchsia-400/30 text-base tracking-[0.1em] transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-30 disabled:grayscale"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-rose-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <span className="relative z-10 flex items-center justify-center gap-3 group-hover:text-white transition-colors">
-                    {!vrm ? 'MODEL NOT LOADED' : isStartingCamera ? 'INITIALIZING...' : isModelLoading ? 'LOADING MODEL...' : <>START MISSION <Play size={20} /></>}
-                  </span>
+                  📸 PHOTO BOOTH with MIKU
                 </button>
 
-              <input type="file" accept=".vrm" ref={fileInputRef} onChange={handleVRMUpload} style={{ display: 'none' }} />
-
-              <button
-                onClick={() => setGameState('MOCAP')}
-                className="w-full py-3 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 font-bold rounded-2xl border border-cyan-400/20 text-xs tracking-[0.2em] transition-all active:scale-95"
-              >
-                🔬 MOCAP TEST MODE
-              </button>
-
-              <button
-                onClick={() => setGameState('PHOTO_BOOTH')}
-                disabled={!vrm || isModelLoading}
-                className="w-full py-4 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-200 font-bold rounded-2xl border border-fuchsia-400/30 text-sm tracking-[0.1em] transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-30 disabled:grayscale"
-              >
-                📸 PHOTO BOOTH with MIKU
-              </button>
+                <button
+                  onClick={() => setGameState('MOCAP')}
+                  className="w-full py-3 bg-white/5 hover:bg-white/10 text-gray-400 font-bold rounded-2xl border border-white/5 text-[10px] tracking-[0.2em] transition-all active:scale-95 uppercase"
+                >
+                  🔬 MOCAP TEST MODE
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
