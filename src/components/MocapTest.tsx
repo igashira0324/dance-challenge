@@ -55,6 +55,9 @@ const MocapTest = ({ vrm, onExit }: Props) => {
         const result = poseService.detect(v, t);
         if (!result || !result.landmarks?.[0] || !result.worldLandmarks?.[0]) {
           setDetected(false);
+          if (vrm && vrm.humanoid) {
+            vrm.humanoid.resetNormalizedPose();
+          }
           // Do not return here, we want the loop to continue
         } else {
           setDetected(true);
@@ -116,13 +119,20 @@ const MocapTest = ({ vrm, onExit }: Props) => {
             if (vrm) {
               const poseResult = (Pose as any).solve(worldLandmarks, landmarks, { runtime: 'mediapipe', video: v });
               if (poseResult) vrmService.applyPose(vrm, poseResult, 0.5);
-              
-              const now = performance.now();
-              const dt = lastTsRef.current ? (now - lastTsRef.current) / 1000 : 0.016;
-              lastTsRef.current = now;
-              vrmService.update(vrm, dt);
             }
           }
+        }
+
+        // Always render VRM
+        if (vrm) {
+          const isVrm0 = vrm.meta?.metaVersion === '0';
+          const baseRotY = isVrm0 ? Math.PI : 0;
+          vrm.scene.rotation.y = baseRotY;
+
+          const now = performance.now();
+          const dt = lastTsRef.current ? (now - lastTsRef.current) / 1000 : 0.016;
+          lastTsRef.current = now;
+          vrmService.update(vrm, dt);
         }
       };
       rafRef.current = requestAnimationFrame(loop);

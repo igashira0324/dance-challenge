@@ -117,7 +117,8 @@ class VRMService {
       return vrm; 
     }
 
-    vrm.scene.rotation.y = Math.PI;
+    const isVrm0 = vrm.meta?.metaVersion === '0';
+    vrm.scene.rotation.y = isVrm0 ? Math.PI : 0;
     vrm.scene.visible = true;
 
     // ボーン名のマッピングを保存

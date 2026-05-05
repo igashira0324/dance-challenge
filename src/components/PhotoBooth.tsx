@@ -14,7 +14,13 @@ interface Props {
 
 // Built-in models available in /public
 const BUILTIN_MODELS = [
-  { id: 'default', label: 'Hatsune Miku (Default)', url: '/default.vrm' },
+  { id: 'default', label: 'V_Miku (by 602e)', url: '/default.vrm', author: '602e' },
+  { id: 'sn_miku', label: 'sn_式初音ミク (by sn_)', url: '/7002965447371409404.vrm', author: 'sn_' },
+  { id: 'snow_caesar', label: 'Snow Miku (by Caesar)', url: '/139171007668622842.vrm', author: 'Caesar' },
+  { id: 'miku_ppg', label: 'Hatsune Miku (by Ppgrules945)', url: '/9199676059820251883.vrm', author: 'Ppgrules945' },
+  { id: 'sakura_ppg', label: 'Sakura Miku (by Ppgrules945)', url: '/831740847908447423.vrm', author: 'Ppgrules945' },
+  { id: 'snow_ppg', label: 'Snow Miku 2 (by Ppgrules945)', url: '/734209068825969914.vrm', author: 'Ppgrules945' },
+  { id: 'miku_alt', label: 'Hatsune Miku Alt', url: '/3040148004813337719.vrm', author: 'Unknown' },
 ];
 
 const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
@@ -98,14 +104,25 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
             const poseResult = (Pose as any).solve(worldLandmarks, landmarks, { runtime: 'mediapipe', video: v });
             if (poseResult) vrmService.applyPose(vrm, poseResult, 0.5);
           }
+        } else {
+          // Fallback to T-pose if nobody is in frame
+          if (vrm && vrm.humanoid) {
+            vrm.humanoid.resetNormalizedPose();
+          }
         }
 
         // Always apply transform and render
         if (vrm) {
           const tf = transformRef.current;
+          
+          // VRM 0.0 models face +Z, VRM 1.0 models face -Z.
+          // Adjust base rotation so they always face the camera.
+          const isVrm0 = vrm.meta?.metaVersion === '0';
+          const baseRotY = isVrm0 ? Math.PI : 0;
+
           vrm.scene.position.set(tf.x, tf.y, tf.z);
           vrm.scene.rotation.x = tf.rotX;
-          vrm.scene.rotation.y = Math.PI + tf.rotY;
+          vrm.scene.rotation.y = baseRotY + tf.rotY;
           vrm.scene.scale.set(tf.scale, tf.scale, tf.scale);
 
           const now = performance.now();
@@ -122,8 +139,9 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       if (videoRef.current) poseService.stopCamera(videoRef.current);
       if (vrm) {
+        const isVrm0 = vrm.meta?.metaVersion === '0';
         vrm.scene.position.set(0, 0, 0);
-        vrm.scene.rotation.set(0, Math.PI, 0);
+        vrm.scene.rotation.set(0, isVrm0 ? Math.PI : 0, 0);
         vrm.scene.scale.set(1, 1, 1);
       }
     };
@@ -211,7 +229,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
   }, [countdown]);
 
   // --- Canvas text rendering ---
-  const drawStylizedText = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+  const drawStylizedText = (ctx: CanvasRenderingContext2D, w: number, h: number, modelId: string) => {
     const text = '初音ミク ♫';
     const x = 60;
     const y = h - 60;
@@ -274,6 +292,26 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
     ctx.shadowBlur = 8;
     ctx.fillText(dateStr, w - 40, h - 40);
 
+    // Bottom-left: Credits
+    const selectedBuiltin = BUILTIN_MODELS.find(m => m.id === modelId);
+    let creditText = '';
+    if (selectedBuiltin) {
+      if (selectedBuiltin.author !== 'Unknown') {
+        creditText = `Model Author: ${selectedBuiltin.author}`;
+      }
+    } else {
+      creditText = `Model: Custom VRM`;
+    }
+
+    if (creditText) {
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 16px "Outfit", "Noto Sans JP", sans-serif';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 4;
+      ctx.fillText(creditText, 30, h - 30);
+    }
+
     ctx.restore();
   };
 
@@ -315,7 +353,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
     ctx.strokeRect(pad + 2, pad + 2, tempCanvas.width - (pad + 2) * 2, tempCanvas.height - (pad + 2) * 2);
 
     // 4. Stylized text
-    drawStylizedText(ctx, tempCanvas.width, tempCanvas.height);
+    drawStylizedText(ctx, tempCanvas.width, tempCanvas.height, selectedModel);
 
     setCapturedImage(tempCanvas.toDataURL('image/png'));
   };
