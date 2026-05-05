@@ -59,6 +59,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
   const [isDecorating, setIsDecorating] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
 
   // Use Ref for transformation to avoid re-triggering the useEffect
   const transformRef = useRef({
@@ -71,28 +72,48 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   });
 
   const currentModel = BUILTIN_MODELS.find(m => m.id === selectedModelId);
-  const [isCameraReady, setIsCameraReady] = useState(false);
 
-  // --- Camera Init Effect ---
+  // --- Camera Init Effect (Granular & Robust) ---
   useEffect(() => {
     let alive = true;
-    (async () => {
+    const video = videoRef.current;
+
+    const initCamera = async () => {
       try {
-        setStatus('Initializing Camera...');
+        setIsCameraReady(false);
+        setStatus('Loading motion models...');
         await poseService.init();
-        if (!videoRef.current) return;
-        await poseService.startCamera(videoRef.current);
-        if (alive) {
-          setIsCameraReady(true);
-          setStatus('Ready');
-        }
+
+        if (!alive) return;
+        if (!video) throw new Error('Video element is not ready');
+
+        setStatus('Requesting camera permission...');
+        await poseService.startCamera(video);
+
+        if (!alive) return;
+        setIsCameraReady(true);
+        setStatus('Ready');
       } catch (e: any) {
-        if (alive) setStatus('ERROR: ' + (e?.message || e));
+        if (!alive) return;
+        console.error('PhotoBooth camera init failed:', e);
+        const message = e?.name === 'NotAllowedError'
+          ? 'ERROR: Camera permission denied'
+          : e?.name === 'NotFoundError'
+            ? 'ERROR: Camera not found'
+            : `ERROR: ${e?.message || e}`;
+        setStatus(message);
+        setIsCameraReady(false);
       }
-    })();
+    };
+
+    initCamera();
+
     return () => {
       alive = false;
-      if (videoRef.current) poseService.stopCamera(videoRef.current);
+      setIsCameraReady(false);
+      if (video) {
+        void poseService.stopCamera(video, { delay: false });
+      }
     };
   }, []);
 
@@ -307,7 +328,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
       setShareUrl(url);
     } catch (e) {
       console.error('Share failed', e);
-      setShareError('写真のアップロードに失敗しました。外部通信またはuguu.seへの接続を確認してください。');
+      setShareError('写真のアップロードに失敗しました。外部通信または uguu.se への接続を確認してください。');
     } finally {
       setIsSharing(false);
     }
@@ -395,6 +416,12 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   const capturePhoto = () => {
     const video = videoRef.current;
     if (!video) return;
+
+    if (!isCameraReady || video.videoWidth === 0 || video.videoHeight === 0) {
+      setStatus('ERROR: Camera is not ready yet');
+      return;
+    }
+
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = video.videoWidth;
     tempCanvas.height = video.videoHeight;
@@ -404,48 +431,49 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     const finalizePhoto = async () => {
       setIsDecorating(true);
       try {
-        const randomMoji = pickRandom(DECORATION_ASSETS_MOJI);
-        const randomChibi = pickRandom(DECORATION_ASSETS_CHIBI);
+        try {
+          const randomMoji = pickRandom(DECORATION_ASSETS_MOJI);
+          const randomChibi = pickRandom(DECORATION_ASSETS_CHIBI);
 
-        const [imgMoji, imgChibi] = await Promise.all([
-          loadImage(`/photo/${randomMoji}`),
-          loadImage(`/photo/${randomChibi}`)
-        ]);
+          const [imgMoji, imgChibi] = await Promise.all([
+            loadImage(`/photo/${randomMoji}`),
+            loadImage(`/photo/${randomChibi}`)
+          ]);
 
-        // Draw Moji (Top Left) - Moved even further up to overlap the edge
-        const mojiSize = tempCanvas.height * 0.3;
-        ctx.drawImage(imgMoji, 20, -20, mojiSize, mojiSize);
+          const fontScale = tempCanvas.width / 1280;
+          const mojiSize = tempCanvas.height * 0.3;
+          ctx.drawImage(imgMoji, 20, -20, mojiSize, mojiSize);
 
-        // Draw Chibi (Bottom Left, above the model name)
-        const chibiSize = tempCanvas.height * 0.35;
-        const fontScale = tempCanvas.width / 1280;
-        ctx.drawImage(
-          imgChibi,
-          30 * fontScale,
-          tempCanvas.height - chibiSize - 60 * fontScale,
-          chibiSize,
-          chibiSize
-        );
-      } catch (e) {
-        console.warn('Failed to load decorations', e);
+          const chibiSize = tempCanvas.height * 0.35;
+          ctx.drawImage(
+            imgChibi,
+            10 * fontScale, // Even further left
+            tempCanvas.height - chibiSize - 25 * fontScale, // Even further down (sitting closer to credit text)
+            chibiSize,
+            chibiSize
+          );
+        } catch (e) {
+          console.warn('Failed to load decorations', e);
+        }
+
+        const cLen = 60;
+        const pad = 12;
+        ctx.strokeStyle = MIKU_COLOR;
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(pad, pad + cLen); ctx.lineTo(pad, pad); ctx.lineTo(pad + cLen, pad); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(tempCanvas.width - pad - cLen, pad); ctx.lineTo(tempCanvas.width - pad, pad); ctx.lineTo(tempCanvas.width - pad, pad + cLen); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(pad, tempCanvas.height - pad - cLen); ctx.lineTo(pad, tempCanvas.height - pad); ctx.lineTo(pad + cLen, tempCanvas.height - pad); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(tempCanvas.width - pad - cLen, tempCanvas.height - pad); ctx.lineTo(tempCanvas.width - pad, tempCanvas.height - pad); ctx.lineTo(tempCanvas.width - pad, tempCanvas.height - pad - cLen); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(pad + 2, pad + 2, tempCanvas.width - (pad + 2) * 2, tempCanvas.height - (pad + 2) * 2);
+
+        drawStylizedText(ctx, tempCanvas.width, tempCanvas.height, selectedModelId);
+        setCapturedImage(tempCanvas.toDataURL('image/png'));
+      } finally {
+        setIsDecorating(false);
       }
-
-      const cLen = 60;
-      const pad = 12;
-      ctx.strokeStyle = MIKU_COLOR;
-      ctx.lineWidth = 6;
-      ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(pad, pad + cLen); ctx.lineTo(pad, pad); ctx.lineTo(pad + cLen, pad); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(tempCanvas.width - pad - cLen, pad); ctx.lineTo(tempCanvas.width - pad, pad); ctx.lineTo(tempCanvas.width - pad, pad + cLen); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(pad, tempCanvas.height - pad - cLen); ctx.lineTo(pad, tempCanvas.height - pad); ctx.lineTo(pad + cLen, tempCanvas.height - pad); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(tempCanvas.width - pad - cLen, tempCanvas.height - pad); ctx.lineTo(tempCanvas.width - pad, tempCanvas.height - pad); ctx.lineTo(tempCanvas.width - pad, tempCanvas.height - pad - cLen); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(pad + 2, pad + 2, tempCanvas.width - (pad + 2) * 2, tempCanvas.height - (pad + 2) * 2);
-
-      drawStylizedText(ctx, tempCanvas.width, tempCanvas.height, selectedModelId);
-      setCapturedImage(tempCanvas.toDataURL('image/png'));
-      setIsDecorating(false);
     };
 
     ctx.save();
@@ -541,9 +569,16 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
 
         <div className="flex flex-col items-center justify-center pointer-events-auto pb-12 gap-6">
           {!capturedImage ? (
-            <button onClick={startCapture} disabled={countdown !== null} className="group relative px-16 py-8 bg-white text-black font-black text-3xl rounded-full overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_0_60px_rgba(57,197,187,0.4)] disabled:opacity-30 disabled:grayscale disabled:scale-100">
+            <button
+              onClick={startCapture}
+              disabled={countdown !== null || !isCameraReady}
+              className="group relative px-16 py-8 bg-white text-black font-black text-3xl rounded-full overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_0_60px_rgba(57,197,187,0.4)] disabled:opacity-30 disabled:grayscale disabled:scale-100"
+            >
               <div className="absolute inset-0 transition-opacity opacity-0 group-hover:opacity-100" style={{ background: `linear-gradient(45deg, ${MIKU_COLOR}, #ffffff)` }} />
-              <span className="relative z-10 flex items-center gap-4 group-hover:text-cyan-900"><Camera size={40} /> TAKE PHOTO</span>
+              <span className="relative z-10 flex items-center gap-4 group-hover:text-cyan-900">
+                <Camera size={40} />
+                {isCameraReady ? 'TAKE PHOTO' : 'CAMERA LOADING...'}
+              </span>
             </button>
           ) : (
             <div className="flex gap-6">

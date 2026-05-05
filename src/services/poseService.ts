@@ -6,16 +6,31 @@ class PoseService {
   private handLandmarker: HandLandmarker | null = null;
   private stream: MediaStream | null = null;
 
-  // Each landmarker needs its own independent timestamp tracker
-  // Sharing one timestamp across 3 detectForVideo calls in the same frame
-  // breaks the monotonic-increase constraint and causes silent detection failures
+  private initPromise: Promise<void> | null = null;
+  private startPromise: Promise<void> | null = null;
+
   private lastPoseTs: number = 0;
   private lastFaceTs: number = 0;
   private lastHandTs: number = 0;
 
   async init() {
     if (this.landmarker && this.faceLandmarker && this.handLandmarker) return;
-    
+
+    if (this.initPromise) {
+      return this.initPromise;
+    }
+
+    this.initPromise = this.doInit();
+
+    try {
+      await this.initPromise;
+    } catch (e) {
+      this.initPromise = null;
+      throw e;
+    }
+  }
+
+  private async doInit() {
     const vision = await FilesetResolver.forVisionTasks(
       "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.34/wasm"
     );
@@ -66,7 +81,21 @@ class PoseService {
   }
 
   async startCamera(videoElement: HTMLVideoElement): Promise<void> {
-    await this.stopCamera(videoElement);
+    if (this.startPromise) {
+      return this.startPromise;
+    }
+
+    this.startPromise = this.doStartCamera(videoElement);
+
+    try {
+      await this.startPromise;
+    } finally {
+      this.startPromise = null;
+    }
+  }
+
+  private async doStartCamera(videoElement: HTMLVideoElement): Promise<void> {
+    await this.stopCamera(videoElement, { delay: false });
 
     const tryGetCamera = async (width: number, height: number): Promise<MediaStream> => {
       return await navigator.mediaDevices.getUserMedia({
@@ -84,11 +113,38 @@ class PoseService {
       }
 
       videoElement.srcObject = this.stream;
-      return new Promise((resolve, reject) => {
-        videoElement.onloadedmetadata = () => {
-          videoElement.play().then(resolve).catch(reject);
+      videoElement.muted = true;
+      videoElement.playsInline = true;
+
+      await new Promise<void>((resolve, reject) => {
+        const cleanup = () => {
+          videoElement.onloadedmetadata = null;
+          videoElement.onerror = null;
         };
-        videoElement.onerror = (e) => reject(new Error("Video element error: " + e));
+
+        const timeout = window.setTimeout(() => {
+          cleanup();
+          reject(new Error("Camera video metadata timeout"));
+        }, 10000);
+
+        videoElement.onloadedmetadata = async () => {
+          try {
+            await videoElement.play();
+            window.clearTimeout(timeout);
+            cleanup();
+            resolve();
+          } catch (e) {
+            window.clearTimeout(timeout);
+            cleanup();
+            reject(e);
+          }
+        };
+
+        videoElement.onerror = (e) => {
+          window.clearTimeout(timeout);
+          cleanup();
+          reject(new Error("Video element error: " + e));
+        };
       });
     } catch (err) {
       console.error("PoseService: All camera access attempts failed", err);
@@ -129,10 +185,10 @@ class PoseService {
     }
   }
 
-  async stopCamera(videoElement?: HTMLVideoElement) {
+  async stopCamera(videoElement?: HTMLVideoElement, options: { delay?: boolean } = { delay: true }) {
     if (videoElement) {
-      videoElement.srcObject = null;
       videoElement.pause();
+      videoElement.srcObject = null;
     }
     if (this.stream) {
       this.stream.getTracks().forEach(track => {
@@ -141,9 +197,15 @@ class PoseService {
       });
       this.stream = null;
     }
-    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    if (options.delay) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
+    this.lastPoseTs = 0;
+    this.lastFaceTs = 0;
+    this.lastHandTs = 0;
   }
 }
 
 export const poseService = new PoseService();
-
