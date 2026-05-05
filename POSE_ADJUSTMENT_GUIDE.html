@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dance Pose Adjustment Guide</title>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+    <style>
+        :root {
+            --primary: #00f2fe;
+            --secondary: #4facfe;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f1f5f9;
+            --accent: #f472b6;
+        }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        .hero {
+            height: 300px;
+            background: linear-gradient(135deg, var(--secondary), var(--primary));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .container {
+            max-width: 900px;
+            margin: -50px auto 50px;
+            padding: 0 20px;
+        }
+        .card {
+            background: var(--card);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+            margin-bottom: 40px;
+            border: 1px solid rgba(255,255,255,0.05);
+            animation: slideUp 0.8s ease-out both;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        h1, h2 { color: white; margin-top: 0; }
+        .mermaid { background: white; padding: 20px; border-radius: 10px; margin: 20px 0; }
+        code { background: #000; color: var(--primary); padding: 2px 6px; border-radius: 4px; }
+        .feature-grid { display: grid; grid-cols: 2; gap: 20px; }
+        .highlight { color: var(--accent); font-weight: bold; }
+        .btn-debug {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: bold;
+            margin: 10px 0;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(244, 114, 182, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(244, 114, 182, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(244, 114, 182, 0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <h1>判定精度向上のためのガイド</h1>
+        <p>ダンエボのような「体感」を実現するための新しい判定ロジック</p>
+    </div>
+    
+    <div class="container">
+        <div class="card">
+            <h2>1. なぜ「関節角度」なのか？</h2>
+            <p>これまでのオイラー角比較は、カメラの角度や向きに弱く、判定が不安定でした。<br>
+            新しいロジックでは、MediaPipeのランドマークからベクトル演算を行い、<span class="highlight">関節の曲がり具合（内積）</span>を直接計算します。</p>
+            
+            <div class="mermaid">
+                graph TD
+                A[Landmark A: 肩] --> V1[ベクトル BA]
+                B[Landmark B: 肘] --> V1
+                B --> V2[ベクトル BC]
+                C[Landmark C: 手首] --> V2
+                V1 & V2 --> D[内積計算]
+                D --> E[関節角度 ラジアン]
+                E --> F[ターゲット角度と比較]
+                F --> G{判定 PERFECT/GOOD/MISS}
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>2. 新しい判定パラメータ</h2>
+            <p>以下の関節を主要な判定対象としています：</p>
+            <ul>
+                <li><b>Elbow:</b> 肘の曲がり具合</li>
+                <li><b>Shoulder Lift:</b> 肩の上がり具合（脇の開き）</li>
+                <li><b>Arm Open:</b> 腕の前後・左右への広がり</li>
+            </ul>
+            <p>しきい値は現在 <code>0.35 rad (約20度)</code> 以内をPERFECTとしています。</p>
+        </div>
+
+        <div class="card">
+            <h2>3. 【重要】ポーズのキャプチャ機能</h2>
+            <p>開発中に「理想のポーズ」を定義するためのショートカットを追加しました。</p>
+            <div class="btn-debug">Alt + C</div>
+            <p>1. アプリを起動してカメラをオンにします。<br>
+               2. 理想的なポーズをとった状態で <b>Alt + C</b> を押します。<br>
+               3. ブラウザのコンソールに <code>JSON</code> 形式で角度データが出力されます。<br>
+               4. その値を <code>constants/index.ts</code> の <code>P</code> 定義に貼り付けるだけで調整完了です！</p>
+        </div>
+    </div>
+</body>
+</html>

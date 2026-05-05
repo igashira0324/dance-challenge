@@ -13,22 +13,23 @@ import { MarkerTarget, Lyric, DEMO_MARKERS, DEMO_LYRICS } from './constants';
 import HUD from './components/HUD';
 import KineticTypography from './components/KineticTypography';
 
-const checkPoseMatch = (landmarks: any[], latestPose: any, target: MarkerTarget): 'PERFECT' | 'GOOD' | 'MISS' => {
+import { extractKeyJointAngles, compareAngles } from './utils/poseUtils';
+
+const checkPoseMatch = (landmarks: any[], _latestPose: any, target: MarkerTarget): 'PERFECT' | 'GOOD' | 'MISS' => {
   if (target.type === 'Silhouette') {
-    if (!latestPose || !target.targetAngles) return 'MISS';
-    let diff = 0;
+    if (!landmarks || landmarks.length === 0 || !target.targetPoseAngles) return 'MISS';
     
-    // Very simplified angle comparison 
-    if (target.targetAngles.leftArm && latestPose.LeftUpperArm) {
-      diff += Math.abs(latestPose.LeftUpperArm.z - target.targetAngles.leftArm.z);
-    }
-    if (target.targetAngles.rightArm && latestPose.RightUpperArm) {
-      diff += Math.abs(latestPose.RightUpperArm.z - target.targetAngles.rightArm.z);
-    }
+    // ユーザーの現在の関節角度を抽出
+    const userAngles = extractKeyJointAngles(landmarks);
+    if (!userAngles) return 'MISS';
+
+    // ターゲット角度と比較
+    const diff = compareAngles(userAngles, target.targetPoseAngles);
     
-    // フロントカメラでの推定精度を考慮してしきい値を大幅に緩和
-    if (diff < 1.0) return 'PERFECT';
-    if (diff < 2.0) return 'GOOD';
+    // しきい値の調整 (ラジアンの平均差)
+    // 0.3 rad ≈ 17度, 0.6 rad ≈ 34度
+    if (diff < 0.35) return 'PERFECT';
+    if (diff < 0.7) return 'GOOD';
     return 'MISS';
   }
 
@@ -42,13 +43,13 @@ const checkPoseMatch = (landmarks: any[], latestPose: any, target: MarkerTarget)
 
   let wrist = target.targetLimb === 'leftWrist' ? leftWrist : rightWrist;
 
+  // MediaPipeの座標系(0.0-1.0)での距離
   const dx = wrist.x - target.x;
   const dy = wrist.y - target.y;
-  
   const distance = Math.sqrt(dx * dx + dy * dy);
 
-  const PERFECT_THRESH = 0.15; 
-  const GOOD_THRESH = 0.30; 
+  const PERFECT_THRESH = 0.18; 
+  const GOOD_THRESH = 0.35; 
 
   if (distance <= PERFECT_THRESH) return 'PERFECT';
   if (distance <= GOOD_THRESH) return 'GOOD';
@@ -96,6 +97,21 @@ const App = () => {
       audioEngine.stop();
       poseService.stopCamera();
     };
+  }, []);
+
+  // --- Debug: Capture Pose ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key === 'c') {
+        const angles = extractKeyJointAngles(latestLandmarksRef.current);
+        if (angles) {
+          console.log("Captured Pose Angles:", JSON.stringify(angles, null, 2));
+          alert("Pose Captured! Check console for angles.");
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   // --- Core Loop ---
@@ -168,7 +184,7 @@ const App = () => {
       }
       vrmService.updateSilhouettes(currentActiveSilhouette);
       // Check hits
-      const HIT_WINDOW = 0.3;
+      const HIT_WINDOW = 0.6;
       visibleMarkers.forEach(marker => {
         const markerId = marker.hitTime;
         if (!scoredPosesRef.current.has(markerId)) {

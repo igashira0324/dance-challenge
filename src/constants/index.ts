@@ -7,10 +7,13 @@ export type AnimationType =
 
 export type MarkerType = 'Ripple' | 'Stream' | 'Lock' | 'Silhouette';
 
-export interface TargetAngle {
-  x: number;
-  y: number;
-  z: number;
+export interface PoseAngles {
+  leftArmElbow?: number;
+  rightArmElbow?: number;
+  leftShoulderLift?: number;
+  rightShoulderLift?: number;
+  leftArmOpen?: number;
+  rightArmOpen?: number;
 }
 
 export class MarkerTarget {
@@ -21,7 +24,7 @@ export class MarkerTarget {
   type: MarkerType;
   duration?: number;
   name: string;
-  targetAngles?: { leftArm?: TargetAngle; rightArm?: TargetAngle };
+  targetPoseAngles?: PoseAngles;
 
   constructor(
     hitTime: number,
@@ -31,7 +34,7 @@ export class MarkerTarget {
     name: string,
     type: MarkerType = 'Ripple',
     duration?: number,
-    targetAngles?: { leftArm?: TargetAngle; rightArm?: TargetAngle }
+    targetPoseAngles?: PoseAngles
   ) {
     this.hitTime = hitTime;
     this.x = x;
@@ -40,7 +43,7 @@ export class MarkerTarget {
     this.name = name;
     this.type = type;
     this.duration = duration;
-    this.targetAngles = targetAngles;
+    this.targetPoseAngles = targetPoseAngles;
   }
 }
 
@@ -70,93 +73,80 @@ export class Lyric {
 }
 
 // =============================================
-// ダンエボ風ポーズ定義（全16種類）
+// ダンエボ風ポーズ定義 (Joint Angle Basis)
+// 角度はラジアン: 3.14 = 180度, 1.57 = 90度
 // =============================================
-const P = {
-  // 両手を高く上げる（万歳）
-  BANZAI:        { leftArm: { x: 0, y: 0, z: -2.8 }, rightArm: { x: 0, y: 0, z: 2.8 } },
-  // Yの字
-  Y_POSE:        { leftArm: { x: 0, y: 0, z: -2.0 }, rightArm: { x: 0, y: 0, z: 2.0 } },
-  // 両腕を水平に広げるT
-  T_WIDE:        { leftArm: { x: 0, y: 0, z: -1.57 }, rightArm: { x: 0, y: 0, z: 1.57 } },
-  // 右手だけ高く上げる
-  R_UP:          { leftArm: { x: 0, y: 0, z: -0.3 }, rightArm: { x: 0, y: 0, z: 2.6 } },
-  // 左手だけ高く上げる
-  L_UP:          { leftArm: { x: 0, y: 0, z: -2.6 }, rightArm: { x: 0, y: 0, z: 0.3 } },
-  // 右手を斜め上
-  R_DIAG_UP:     { leftArm: { x: 0, y: 0, z: -0.5 }, rightArm: { x: 0, y: 0, z: 2.1 } },
-  // 左手を斜め上
-  L_DIAG_UP:     { leftArm: { x: 0, y: 0, z: -2.1 }, rightArm: { x: 0, y: 0, z: 0.5 } },
-  // 右手を下ろして左手を上げる（クロス）
-  CROSS_RL:      { leftArm: { x: 0, y: 0, z: -2.4 }, rightArm: { x: 0, y: 0, z: 0.4 } },
-  // 逆クロス（左下・右上）
-  CROSS_LR:      { leftArm: { x: 0, y: 0, z: -0.4 }, rightArm: { x: 0, y: 0, z: 2.4 } },
-  // ガッツポーズ（右手強く上）
-  GUTS_R:        { leftArm: { x: 0.3, y: 0, z: -0.4 }, rightArm: { x: -0.5, y: 0, z: 2.7 } },
-  // ガッツポーズ（左手強く上）
-  GUTS_L:        { leftArm: { x: -0.5, y: 0, z: -2.7 }, rightArm: { x: 0.3, y: 0, z: 0.4 } },
-  // 右斜め下に出す
-  R_POINT_DOWN:  { leftArm: { x: 0, y: 0, z: -1.0 }, rightArm: { x: 0, y: 0, z: 0.8 } },
-  // 左斜め下に出す
-  L_POINT_DOWN:  { leftArm: { x: 0, y: 0, z: -0.8 }, rightArm: { x: 0, y: 0, z: 1.0 } },
-  // 両手を斜め上広げ（ジャンプ前）
-  V_UP:          { leftArm: { x: 0, y: 0, z: -2.3 }, rightArm: { x: 0, y: 0, z: 2.3 } },
-  // 両手を前に出す（スラスト）
-  THRUST:        { leftArm: { x: 1.2, y: 0, z: -0.6 }, rightArm: { x: 1.2, y: 0, z: 0.6 } },
-  // 右肘を引く（引きポーズ）
-  PULL_R:        { leftArm: { x: 0, y: 0, z: -1.2 }, rightArm: { x: -0.8, y: 0.5, z: 1.8 } },
+const P: Record<string, PoseAngles> = {
+  // 両手を高く上げる（万歳）: 肘は伸びている(3.14), 肩は真上(3.14)
+  BANZAI: { 
+    leftArmElbow: 3.0, rightArmElbow: 3.0, 
+    leftShoulderLift: 2.8, rightShoulderLift: 2.8 
+  },
+  // Yの字: 肘は伸びている(3.14), 肩は斜め上(2.3)
+  Y_POSE: { 
+    leftArmElbow: 3.0, rightArmElbow: 3.0, 
+    leftShoulderLift: 2.3, rightShoulderLift: 2.3 
+  },
+  // T字ワイド: 肘は伸びている(3.14), 肩は水平(1.57)
+  T_WIDE: { 
+    leftArmElbow: 3.0, rightArmElbow: 3.0, 
+    leftShoulderLift: 1.5, rightShoulderLift: 1.5 
+  },
+  // 右手だけ上げる: 右肩(2.8), 左肩(0.3)
+  R_UP: { 
+    leftArmElbow: 3.0, rightArmElbow: 3.0, 
+    leftShoulderLift: 0.3, rightShoulderLift: 2.8 
+  },
+  // 左手だけ上げる
+  L_UP: { 
+    leftArmElbow: 3.0, rightArmElbow: 3.0, 
+    leftShoulderLift: 2.8, rightShoulderLift: 0.3 
+  },
+  // ガッツポーズ右: 肘を曲げている(1.2), 肩を上げている(2.0)
+  GUTS_R: { 
+    leftArmElbow: 3.0, rightArmElbow: 1.2, 
+    leftShoulderLift: 0.3, rightShoulderLift: 2.0 
+  },
+  // ガッツポーズ左
+  GUTS_L: { 
+    leftArmElbow: 1.2, rightArmElbow: 3.0, 
+    leftShoulderLift: 2.0, rightShoulderLift: 0.3 
+  },
+  // 両手を前に出す（スラスト）: 肘は伸びている, 肩は前（開き角が小さくなる）
+  THRUST: { 
+    leftArmElbow: 3.0, rightArmElbow: 3.0, 
+    leftArmOpen: 0.5, rightArmOpen: 0.5 
+  },
+  // Vアップ: 肩は斜め上, 肘は少し曲がっている
+  V_UP: { 
+    leftArmElbow: 2.5, rightArmElbow: 2.5, 
+    leftShoulderLift: 2.5, rightShoulderLift: 2.5 
+  },
 };
 
 export const DEMO_MARKERS: MarkerTarget[] = [
   // ======= 序盤 (t=1〜6秒) =======
-  // t=1.0: Ripple ウォームアップ
   new MarkerTarget(1.0, 0.8, 0.3, 'rightWrist', "Warm-R", 'Ripple'),
-
-  // t=2.0: Yの字ポーズ
   new MarkerTarget(2.0, 0.5, 0.5, 'fullBody', "Y-Pose", 'Silhouette', undefined, P.Y_POSE),
-
-  // t=3.5: 右だけ上げる
   new MarkerTarget(3.5, 0.5, 0.5, 'fullBody', "R-Up", 'Silhouette', undefined, P.R_UP),
-
-  // t=5.0: 左だけ上げる
   new MarkerTarget(5.0, 0.5, 0.5, 'fullBody', "L-Up", 'Silhouette', undefined, P.L_UP),
 
   // ======= 中盤前半 (t=6〜10秒) =======
-  // t=6.5: Ripple 右手
   new MarkerTarget(6.5, 0.85, 0.5, 'rightWrist', "Hit-R", 'Ripple'),
-
-  // t=7.5: 万歳ポーズ
   new MarkerTarget(7.5, 0.5, 0.5, 'fullBody', "Banzai", 'Silhouette', undefined, P.BANZAI),
-
-  // t=9.0: ガッツポーズ右
   new MarkerTarget(9.0, 0.5, 0.5, 'fullBody', "Guts-R", 'Silhouette', undefined, P.GUTS_R),
-
-  // t=10.5: 右斜め上
-  new MarkerTarget(10.5, 0.5, 0.5, 'fullBody', "R-Diag", 'Silhouette', undefined, P.R_DIAG_UP),
+  new MarkerTarget(10.5, 0.5, 0.5, 'fullBody', "T-Wide", 'Silhouette', undefined, P.T_WIDE),
 
   // ======= 中盤後半 (t=11〜14秒) =======
-  // t=12.0: Ripple 両手同時
   new MarkerTarget(12.0, 0.15, 0.4, 'leftWrist',  "Strike-L", 'Ripple'),
   new MarkerTarget(12.0, 0.85, 0.4, 'rightWrist', "Strike-R", 'Ripple'),
-
-  // t=12.5: 左斜め上
-  new MarkerTarget(12.5, 0.5, 0.5, 'fullBody', "L-Diag", 'Silhouette', undefined, P.L_DIAG_UP),
-
-  // t=13.5: クロスRL
-  new MarkerTarget(13.5, 0.5, 0.5, 'fullBody', "Cross-RL", 'Silhouette', undefined, P.CROSS_RL),
+  new MarkerTarget(13.0, 0.5, 0.5, 'fullBody', "Thrust", 'Silhouette', undefined, P.THRUST),
 
   // ======= 後半 (t=14〜17秒) =======
-  // t=14.5: T字ワイド
   new MarkerTarget(14.5, 0.5, 0.5, 'fullBody', "T-Wide", 'Silhouette', undefined, P.T_WIDE),
-
-  // t=15.5: ガッツポーズ左
   new MarkerTarget(15.5, 0.5, 0.5, 'fullBody', "Guts-L", 'Silhouette', undefined, P.GUTS_L),
-
-  // t=16.5: Ripple 両手
   new MarkerTarget(16.5, 0.1, 0.3, 'leftWrist',  "Finish-L", 'Ripple'),
   new MarkerTarget(16.5, 0.9, 0.3, 'rightWrist', "Finish-R", 'Ripple'),
-
-  // t=17.5: Vアップで締め
   new MarkerTarget(17.5, 0.5, 0.5, 'fullBody', "V-Up", 'Silhouette', undefined, P.V_UP),
 ];
 
