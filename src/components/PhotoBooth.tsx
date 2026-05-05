@@ -409,7 +409,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
   };
 
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden z-[50]">
       {/* Background Video */}
       <video 
         ref={videoRef} 
@@ -421,7 +421,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
       {/* Transparent interaction layer — above 3D canvas, captures pointer/wheel */}
       <div
         className={`absolute inset-0 z-[60] ${countdown !== null ? 'pointer-events-none' : ''}`}
-        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+        style={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

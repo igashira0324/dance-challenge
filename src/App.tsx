@@ -138,7 +138,7 @@ const App = () => {
       
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full z-10" />
 
-      {gameState !== 'MOCAP' && (
+      {gameState !== 'MOCAP' && gameState !== 'PHOTO_BOOTH' && (
         <div className="absolute bottom-6 right-6 w-72 h-48 glass-panel overflow-hidden z-30 group hover:scale-[1.02] transition-transform duration-300">
           <video ref={videoRef} className="w-full h-full object-cover scale-x-[-1] opacity-70" muted playsInline />
           <div className="absolute top-3 left-3 bg-rose-500/80 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-bold text-white flex items-center gap-2 animate-pulse shadow-lg">
@@ -147,7 +147,7 @@ const App = () => {
         </div>
       )}
 
-      {gameState !== 'MOCAP' && (
+      {gameState !== 'MOCAP' && gameState !== 'PHOTO_BOOTH' && (
         <>
           <HUD 
             score={score} 
