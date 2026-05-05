@@ -16,6 +16,24 @@ interface Props {
   onVrmChange: (model: BuiltinModel) => Promise<void>;
 }
 
+const isLandmarkVisible = (lm: any) => {
+  if (!lm) return false;
+  const visibility = lm.visibility ?? lm.presence ?? 1;
+  return (
+    visibility > 0.5 &&
+    lm.x > -0.1 &&
+    lm.x < 1.1 &&
+    lm.y > -0.1 &&
+    lm.y < 1.1
+  );
+};
+
+const areArmsReliable = (landmarks: any[]) => {
+  if (!landmarks) return false;
+  // 11 leftShoulder, 12 rightShoulder, 13 leftElbow, 14 rightElbow, 15 leftWrist, 16 rightWrist
+  const armIndices = [11, 12, 13, 14, 15, 16];
+  return armIndices.every((idx) => isLandmarkVisible(landmarks[idx]));
+};
 
 const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -75,6 +93,11 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
     let alive = true;
     if (!isCameraReady) return;
 
+    lastPoseRef.current = null;
+    if (vrm) {
+      vrmService.resetToCorrectedPose(vrm);
+    }
+
     // Capture base scale for relative scaling
     const baseScale = vrm ? vrm.scene.scale.x : 1.0;
     
@@ -124,23 +147,24 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
           }
 
           // Pose
-          const poseResult = (Pose as any).solve(worldLandmarks, landmarks, { runtime: 'mediapipe', video: v });
-          if (poseResult) {
-            lastPoseRef.current = poseResult;
-            vrmService.applyPose(vrm, poseResult, 0.5);
-          } else if (lastPoseRef.current) {
-            // Smoothly hold the last pose
-            vrmService.applyPose(vrm, lastPoseRef.current, 0.05);
+          const canTrackArms = areArmsReliable(landmarks);
+          if (canTrackArms) {
+            const poseResult = (Pose as any).solve(worldLandmarks, landmarks, { runtime: 'mediapipe', video: v });
+            if (poseResult) {
+              lastPoseRef.current = poseResult;
+              vrmService.applyPose(vrm, poseResult, 0.5);
+            }
+          } else {
+            // Arms not visible or unreliable - stay in natural rest pose
+            lastPoseRef.current = null;
+            vrmService.resetToCorrectedPose(vrm);
           }
         }
       } else {
-        // Fallback to last known pose or T-pose if nobody is in frame
+        // Fallback to corrected pose if nobody is in frame
         if (vrm && vrm.humanoid) {
-          if (lastPoseRef.current) {
-            vrmService.applyPose(vrm, lastPoseRef.current, 0.02);
-          } else {
-            vrmService.resetToCorrectedPose(vrm);
-          }
+          lastPoseRef.current = null;
+          vrmService.resetToCorrectedPose(vrm);
         }
       }
 
@@ -258,7 +282,7 @@ const PhotoBooth = ({ vrm, selectedModelId, onExit, onVrmChange }: Props) => {
       await onVrmChange(customModel);
     } catch (e) {
       console.warn('Custom model load failed', e);
-      setModelError('モデルの読み込みに失敗しました');
+      setModelError('カスタムVRMの読み込みに失敗しました');
     } finally {
       URL.revokeObjectURL(url);
       setIsLoadingModel(false);

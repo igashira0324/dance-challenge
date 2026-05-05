@@ -41,8 +41,6 @@ export const BUILTIN_MODELS: BuiltinModel[] = [
     label: 'sn_式初音ミク (by sn_)',
     url: '/7002965447371409404.vrm',
     author: 'sn_',
-    restPoseCorrection: PPG_REST_POSE_CORRECTION,
-    trackingCorrection: PPG_TRACKING_CORRECTION,
   },
   {
     id: 'snow_caesar',

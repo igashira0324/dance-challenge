@@ -132,6 +132,7 @@ class VRMService {
 
     // Apply rest pose correction if any
     this.applyRestPoseCorrection(vrm, 1.0);
+    vrm.update(0);
 
     // ボーン名のマッピングを保存
     this.humanoidBoneNameMap.clear();
@@ -231,6 +232,7 @@ class VRMService {
     if (!vrm?.humanoid) return;
     vrm.humanoid.resetNormalizedPose();
     this.applyRestPoseCorrection(vrm, 1.0);
+    vrm.update(0);
   }
 
   applyPose(vrm: VRM, pose: any, lerpAmountParam = 0.3) {
