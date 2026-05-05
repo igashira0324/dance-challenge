@@ -9,8 +9,8 @@ import type { MarkerTarget } from '../types/game';
 import { VRM } from '@pixiv/three-vrm';
 
 interface GameLoopProps {
-  gameState: 'IDLE' | 'PLAYING' | 'RESULT' | 'MOCAP';
-  setGameState: (s: 'IDLE' | 'PLAYING' | 'RESULT' | 'MOCAP') => void;
+  gameState: 'IDLE' | 'PLAYING' | 'RESULT' | 'MOCAP' | 'PHOTO_BOOTH';
+  setGameState: (s: 'IDLE' | 'PLAYING' | 'RESULT' | 'MOCAP' | 'PHOTO_BOOTH') => void;
   vrm: VRM | null;
   updatePose: (world: any, landmarks: any) => void;
   evaluateMarker: (target: MarkerTarget, result: 'PERFECT' | 'GOOD' | 'MISS', bonus: number) => void;

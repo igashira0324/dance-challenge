@@ -63,6 +63,24 @@ class VRMService {
     }
   };
 
+  setPosition(x: number, y: number, z: number) {
+    if (this.currentVrm) {
+      this.currentVrm.scene.position.set(x, y, z);
+    }
+  }
+
+  setRotation(y: number) {
+    if (this.currentVrm) {
+      this.currentVrm.scene.rotation.y = y;
+    }
+  }
+
+  takeScreenshot(): string | null {
+    if (!this.renderer || !this.scene || !this.camera) return null;
+    this.renderer.render(this.scene, this.camera);
+    return this.renderer.domElement.toDataURL('image/png');
+  }
+
   private async _loadSingleVrm(url: string): Promise<VRM> {
     return new Promise((resolve, reject) => {
       this.loader.load(url, (gltf: GLTF) => {

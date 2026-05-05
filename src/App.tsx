@@ -11,6 +11,7 @@ import { DEMO_LYRICS } from './constants';
 import HUD from './components/HUD';
 import KineticTypography from './components/KineticTypography';
 import MocapTest from './components/MocapTest';
+import PhotoBooth from './components/PhotoBooth';
 
 import { useGameEngine } from './hooks/useGameEngine';
 import { useCameraPose } from './hooks/useCameraPose';
@@ -19,7 +20,7 @@ import { useGameLoop } from './hooks/useGameLoop';
 import './App.css';
 
 const App = () => {
-  const [gameState, setGameState] = useState<'IDLE' | 'PLAYING' | 'RESULT' | 'MOCAP'>('IDLE');
+  const [gameState, setGameState] = useState<'IDLE' | 'PLAYING' | 'RESULT' | 'MOCAP' | 'PHOTO_BOOTH'>('IDLE');
   const [vrm, setVrm] = useState<VRM | null>(null);
   const [isShaking, setIsShaking] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -205,6 +206,13 @@ const App = () => {
               >
                 🔬 MOCAP TEST MODE
               </button>
+
+              <button
+                onClick={() => setGameState('PHOTO_BOOTH')}
+                className="w-full py-4 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-200 font-bold rounded-2xl border border-fuchsia-400/30 text-sm tracking-[0.1em] transition-all flex items-center justify-center gap-2"
+              >
+                📸 PHOTO BOOTH with MIKU
+              </button>
             </div>
           </motion.div>
         )}
@@ -272,6 +280,10 @@ const App = () => {
 
         {gameState === 'MOCAP' && (
           <MocapTest vrm={vrm} onExit={() => setGameState('IDLE')} />
+        )}
+
+        {gameState === 'PHOTO_BOOTH' && (
+          <PhotoBooth vrm={vrm} onExit={() => setGameState('IDLE')} />
         )}
       </AnimatePresence>
     </div>
