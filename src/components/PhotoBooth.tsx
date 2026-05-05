@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { VRM } from '@pixiv/three-vrm';
 import { Pose, Face, Hand } from 'kalidokit';
 import { poseService } from '../services/poseService';
 import { vrmService } from '../services/vrmService';
-import { Camera, Download, RefreshCw, X } from 'lucide-react';
+import { Camera, Download, RefreshCw, X, Move, RotateCw, Maximize } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Props {
@@ -23,12 +23,21 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
   // Miku Teal color
   const MIKU_COLOR = '#39C5BB';
 
+  // Avatar transformation state
+  const [transform, setTransform] = useState({
+    x: -0.5,
+    y: 0,
+    z: 0,
+    rotationY: 0,
+    scale: 1.0
+  });
+
+  const isDragging = useRef(false);
+  const lastMousePos = useRef({ x: 0, y: 0 });
+
   useEffect(() => {
     let alive = true;
     
-    // Position for photo: shift VRM to the right slightly
-    vrmService.setPosition(-0.5, 0, 0);
-
     (async () => {
       try {
         setStatus('Starting camera...');
@@ -76,6 +85,11 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
             const poseResult = (Pose as any).solve(worldLandmarks, landmarks, { runtime: 'mediapipe', video: v });
             if (poseResult) vrmService.applyPose(vrm, poseResult, 0.5);
             
+            // Apply mouse-driven transformations
+            vrm.scene.position.set(transform.x, transform.y, transform.z);
+            vrm.scene.rotation.y = Math.PI + transform.rotationY; // Base rotation + user adjustment
+            vrm.scene.scale.set(transform.scale, transform.scale, transform.scale);
+
             const now = performance.now();
             const dt = lastTsRef.current ? (now - lastTsRef.current) / 1000 : 0.016;
             lastTsRef.current = now;
@@ -91,8 +105,47 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       if (videoRef.current) poseService.stopCamera(videoRef.current);
       vrmService.setPosition(0, 0, 0);
+      if (vrm) vrm.scene.scale.set(1, 1, 1);
     };
-  }, [vrm]);
+  }, [vrm, transform]);
+
+  // Mouse transformation handlers
+  const onMouseDown = (e: React.MouseEvent) => {
+    isDragging.current = true;
+    lastMousePos.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const onMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging.current) return;
+    
+    const dx = e.clientX - lastMousePos.current.x;
+    const dy = e.clientY - lastMousePos.current.y;
+    lastMousePos.current = { x: e.clientX, y: e.clientY };
+
+    if (e.shiftKey) {
+      // Rotation
+      setTransform(prev => ({ ...prev, rotationY: prev.rotationY + dx * 0.01 }));
+    } else {
+      // Position
+      setTransform(prev => ({ 
+        ...prev, 
+        x: prev.x + dx * 0.005,
+        y: prev.y - dy * 0.005
+      }));
+    }
+  }, []);
+
+  const onMouseUp = () => {
+    isDragging.current = false;
+  };
+
+  const onWheel = (e: React.WheelEvent) => {
+    const delta = e.deltaY * -0.001;
+    setTransform(prev => ({
+      ...prev,
+      scale: Math.max(0.1, Math.min(3.0, prev.scale + delta))
+    }));
+  };
 
   const startCapture = () => {
     if (countdown !== null) return;
@@ -107,8 +160,6 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
     } else {
       setIsFlash(true);
       setTimeout(() => setIsFlash(false), 150);
-      
-      // Capture after a tiny delay to ensure flash is visible/triggering
       setTimeout(capturePhoto, 50);
       setCountdown(null);
     }
@@ -134,16 +185,13 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
     // 2. Draw VRM Canvas
     const vrmCanvas = document.querySelector('canvas') as HTMLCanvasElement;
     if (vrmCanvas) {
-      // Draw 3D scene over the background
       ctx.drawImage(vrmCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
     }
 
-    // 3. Add decorative frame (Miku Teal style)
+    // 3. Frame
     ctx.strokeStyle = MIKU_COLOR;
     ctx.lineWidth = 16;
     ctx.strokeRect(8, 8, tempCanvas.width - 16, tempCanvas.height - 16);
-    
-    // Add white inner border for "Purikura" look
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 4;
     ctx.strokeRect(20, 20, tempCanvas.width - 40, tempCanvas.height - 40);
@@ -155,15 +203,8 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
     ctx.shadowBlur = 10;
     ctx.shadowOffsetX = 4;
     ctx.shadowOffsetY = 4;
+    ctx.fillText('MEMORY WITH MIKU', 60, tempCanvas.height - 70);
     
-    const text = 'MEMORY WITH MIKU';
-    ctx.fillText(text, 60, tempCanvas.height - 70);
-    
-    // Reset shadow
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-
     setCapturedImage(tempCanvas.toDataURL('image/png'));
   };
 
@@ -176,7 +217,15 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
   };
 
   return (
-    <div className="absolute inset-0 z-[100] flex items-center justify-center overflow-hidden">
+    <div 
+      className="absolute inset-0 flex items-center justify-center overflow-hidden"
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+      onMouseLeave={onMouseUp}
+      onWheel={onWheel}
+    >
+      {/* Background Video - z-index 0 to stay behind 3D canvas at z-10 */}
       <video 
         ref={videoRef} 
         className="absolute inset-0 w-full h-full object-cover scale-x-[-1] z-0" 
@@ -184,28 +233,35 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
         playsInline 
       />
 
+      {/* Flash Effect */}
       <AnimatePresence>
         {isFlash && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-white z-[110]"
+            className="absolute inset-0 bg-white z-[200]"
           />
         )}
       </AnimatePresence>
 
-      <div className="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-8">
+      {/* UI Overlay - z-index 100 to stay above everything */}
+      <div className="absolute inset-0 z-[100] pointer-events-none flex flex-col justify-between p-8">
         <div className="flex justify-between items-start pointer-events-auto">
           <div className="bg-black/70 backdrop-blur-xl p-5 rounded-3xl border border-white/10 text-white shadow-2xl">
             <h2 className="text-2xl font-black flex items-center gap-3 tracking-tighter">
               <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: MIKU_COLOR }} />
               PHOTO BOOTH
             </h2>
-            <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] mt-1 font-bold">Memory with Hatsune Miku</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] mt-1 font-bold">Adjust Miku with your mouse!</p>
             <p className={`text-[9px] mt-3 font-mono px-2 py-1 rounded bg-black/40 ${status.startsWith('ERROR') ? 'text-rose-400' : 'text-cyan-400'}`}>
               STATUS: {status}
             </p>
+            <div className="flex gap-4 mt-4 text-[9px] font-mono opacity-80">
+               <div className="flex items-center gap-1"><Move size={10} /> Drag: Move</div>
+               <div className="flex items-center gap-1"><RotateCw size={10} /> Shift+Drag: Rotate</div>
+               <div className="flex items-center gap-1"><Maximize size={10} /> Wheel: Scale</div>
+            </div>
           </div>
           
           <button 
@@ -280,12 +336,6 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
               </button>
             </motion.div>
             <div className="mt-12 flex gap-8 pointer-events-auto">
-               <button 
-                onClick={() => setCapturedImage(null)}
-                className="px-12 py-5 bg-white/5 text-white font-bold rounded-2xl border border-white/10 hover:bg-white/10 transition-all"
-              >
-                Cancel
-              </button>
               <button 
                 onClick={downloadPhoto}
                 className="px-20 py-5 text-white font-black text-2xl rounded-2xl flex items-center gap-4 transition-all shadow-2xl"
