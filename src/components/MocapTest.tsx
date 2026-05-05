@@ -197,7 +197,7 @@ const MocapTest = ({ vrm, onExit }: Props) => {
               onClick={onExit}
               className="mt-10 px-12 py-4 bg-white text-black font-black rounded-full hover:scale-105 active:scale-95 transition-all shadow-[0_0_30px_rgba(255,255,255,0.3)]"
             >
-              EXIT TO HOME
+              BACK TO HOME
             </button>
           </motion.div>
         )}

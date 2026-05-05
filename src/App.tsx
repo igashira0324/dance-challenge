@@ -193,15 +193,15 @@ const App = () => {
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-rose-400 text-xs font-bold mb-1 flex items-center justify-center gap-2"
+                  className="text-rose-400 text-xs font-bold mb-1 flex items-center justify-center gap-2 bg-rose-950/20 py-2 rounded-xl border border-rose-500/10"
                 >
-                  <span className="animate-pulse">⚠️ まずは下のボタンからモデルを読み込んでください</span>
+                  <span className="animate-pulse">👉 まずは下の "CUSTOM VRM" からモデルを読み込んでください</span>
                 </motion.div>
               )}
 
                 <button 
                   onClick={handleStart}
-                  disabled={isStartingCamera || !vrm}
+                  disabled={isStartingCamera}
                   className="group relative w-full py-5 bg-white text-black font-black text-xl rounded-2xl overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-rose-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -220,16 +220,14 @@ const App = () => {
 
               <button
                 onClick={() => setGameState('MOCAP')}
-                disabled={!vrm}
-                className="w-full py-3 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 font-bold rounded-2xl border border-cyan-400/20 text-xs tracking-[0.2em] transition-all disabled:opacity-20 disabled:grayscale"
+                className="w-full py-3 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 font-bold rounded-2xl border border-cyan-400/20 text-xs tracking-[0.2em] transition-all active:scale-95"
               >
                 🔬 MOCAP TEST MODE
               </button>
 
               <button
                 onClick={() => setGameState('PHOTO_BOOTH')}
-                disabled={!vrm}
-                className="w-full py-4 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-200 font-bold rounded-2xl border border-fuchsia-400/30 text-sm tracking-[0.1em] transition-all flex items-center justify-center gap-2 disabled:opacity-20 disabled:grayscale"
+                className="w-full py-4 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-200 font-bold rounded-2xl border border-fuchsia-400/30 text-sm tracking-[0.1em] transition-all flex items-center justify-center gap-2 active:scale-95"
               >
                 📸 PHOTO BOOTH with MIKU
               </button>

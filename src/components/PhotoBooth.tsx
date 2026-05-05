@@ -247,7 +247,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
   }, [countdown]);
 
   // --- Canvas text rendering ---
-  const drawStylizedText = (ctx: CanvasRenderingContext2D, w: number, h: number, modelId: string) => {
+  const drawStylizedText = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
     ctx.save();
     
     const fontScale = w / 1280;
@@ -307,7 +307,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
     ctx.fillText(dateStr, w - 40 * fontScale, h - 40 * fontScale);
 
     // Bottom-left: Credits
-    let creditText = modelId ? `Model: ${modelId}` : 'Model: Custom VRM';
+    let creditText = 'Model: Custom VRM';
 
     if (creditText) {
       ctx.textAlign = 'left';
@@ -347,7 +347,7 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
       ctx.strokeRect(pad + 2, pad + 2, tempCanvas.width - (pad + 2) * 2, tempCanvas.height - (pad + 2) * 2);
 
       // 4. Stylized text
-      drawStylizedText(ctx, tempCanvas.width, tempCanvas.height, selectedModel || '');
+      drawStylizedText(ctx, tempCanvas.width, tempCanvas.height);
 
       setCapturedImage(tempCanvas.toDataURL('image/png'));
     };
@@ -427,8 +427,8 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
               STATUS: {status}
             </p>
             {selectedModel && (
-              <p className="text-[9px] mt-1 font-mono px-2 py-1 rounded bg-white/5 text-gray-300 flex items-center gap-2">
-                <User size={10} className="text-cyan-400" /> LOADED: {selectedModel}
+              <p className="text-[9px] mt-1 font-mono px-2 py-1 rounded bg-white/5 text-gray-300 flex items-center gap-2 max-w-[180px] truncate" title={selectedModel}>
+                <User size={10} className="text-cyan-400" /> LOADED: {selectedModel.replace(/\.vrm$/i, '')}
               </p>
             )}
             <div className="flex flex-col gap-1 mt-4 text-[9px] font-mono opacity-80">
