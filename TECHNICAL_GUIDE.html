@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>AI DANCE CHALLENGE - SYSTEM ARCHITECTURE</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;900&family=JetBrains+Mono:wght@500&display=swap');
+        
+        :root {
+            --neon-blue: #00ffff;
+            --neon-magenta: #ff00ff;
+            --bg-dark: #0a0a0a;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-dark);
+            color: #fff;
+            margin: 0;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+
+        header {
+            text-align: center;
+            padding: 4rem 0;
+            background: linear-gradient(135deg, #1a1a2e 0%, #000 100%);
+            border-radius: 40px;
+            margin-bottom: 3rem;
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.1);
+        }
+
+        h1 {
+            font-size: 4rem;
+            font-weight: 900;
+            margin: 0;
+            background: linear-gradient(to right, var(--neon-blue), var(--neon-magenta));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            letter-spacing: -2px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 2.5rem;
+            border-radius: 30px;
+            backdrop-filter: blur(20px);
+            margin-bottom: 2rem;
+        }
+
+        .mermaid {
+            background: #fff;
+            padding: 2rem;
+            border-radius: 20px;
+            margin: 2rem 0;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .feature-item {
+            background: rgba(0, 0, 0, 0.4);
+            border-left: 4px solid var(--neon-blue);
+            padding: 1.5rem;
+            border-radius: 15px;
+        }
+
+        .feature-item h3 {
+            color: var(--neon-blue);
+            margin-top: 0;
+        }
+
+        .anim-box {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(45deg, var(--neon-blue), var(--neon-magenta));
+            border-radius: 20px;
+            margin: 2rem auto;
+            animation: pulse-rotate 4s infinite alternate ease-in-out;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.4);
+        }
+
+        @keyframes pulse-rotate {
+            0% { transform: scale(1) rotate(0deg); opacity: 0.8; }
+            100% { transform: scale(1.2) rotate(180deg); opacity: 1; }
+        }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 0.2rem 0.5rem;
+            border-radius: 5px;
+            color: var(--neon-magenta);
+        }
+
+        footer {
+            text-align: center;
+            opacity: 0.5;
+            padding: 4rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>TECHNICAL GUIDE</h1>
+            <p>AI DANCE CHALLENGE - SYSTEM ARCHITECTURE & FEATURES</p>
+        </header>
+
+        <section class="card">
+            <h2>系統構成図 (System Architecture)</h2>
+            <div class="mermaid">
+                graph TD
+                    A[USER / WebCamera] -->|PoseLandmarker| B(MediaPipe Pose)
+                    B -->|Keypoints| C(Kalidokit Retargeting)
+                    C -->|Bone Rotations| D(Three.js / VRM Humanoid)
+                    E[Web Audio API] -->|BPM / CurrentTime| F(Game Logic)
+                    E -->|Audio Output| G(Speaker)
+                    F -->|Judgment| H(HUD Overlay)
+                    F -->|Lyrics Timing| I(Kinetic Typography)
+                    D --> J(Canvas Rendering)
+                    H --> J
+                    I --> J
+                    J --> K[OLED / Monitor]
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>コアテクノロジー</h2>
+            <div class="feature-grid">
+                <div class="feature-item">
+                    <h3>Real-time Pose Tracking</h3>
+                    <p>MediaPipe <code>PoseLandmarker</code> を使用し、ブラウザ上でGPUアクセラレーションを効かせた高速な骨格検出を実現。Kalidokit による IK 補正で VRM モデルに自然な動きを付与します。</p>
+                </div>
+                <div class="feature-item">
+                    <h3>Dynamic Typography</h3>
+                    <p>TextAlive からインスパイアされた、BGM同期型歌詞レンダリング。<code>Framer Motion</code> と CSS Animations を組み合わせ、10種類のアニメーションパターンをリアルタイムに切り替えます。</p>
+                </div>
+                <div class="feature-item">
+                    <h3>Web Audio Engine</h3>
+                    <p>外部音源に頼らず、Web Audio API で高品質なシンセサイザー音を生成。120BPMのグリッドに基づいた正確な判定ロジックを搭載しています。</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>実行方法</h2>
+            <p>Windows環境での起動は、プロジェクトルートにある <code>run.bat</code> をダブルクリックしてください。</p>
+            <div class="anim-box"></div>
+        </section>
+
+        <footer>
+            &copy; 2026 AI Dance Challenge Project - Built with React & Three.js
+        </footer>
+    </div>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+    </script>
+</body>
+</html>

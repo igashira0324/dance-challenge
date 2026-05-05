@@ -1,0 +1,122 @@
+/* ==============================
+   HUD - ダンスエボリューション スタイル
+   ============================== */
+
+/* ジャッジメントテキスト */
+.judgment-text-premium {
+  font-size: 4rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  pointer-events: none;
+  white-space: nowrap;
+  font-family: 'Inter', sans-serif;
+  -webkit-text-stroke: 2px rgba(255,255,255,0.3);
+}
+
+.judgment-text-premium.perfect {
+  color: #fff;
+  text-shadow: 0 0 30px #00ffcc, 0 0 60px #00ffcc, 0 0 80px rgba(0,255,204,0.5);
+}
+
+.judgment-text-premium.good {
+  color: #a5f3fc;
+  text-shadow: 0 0 20px #0ea5e9, 0 0 40px #0ea5e9;
+}
+
+.judgment-text-premium.miss {
+  color: #fda4af;
+  text-shadow: 0 0 20px #f43f5e, 0 0 40px #f43f5e;
+}
+
+/* ======================
+   ダンエボ: ポーズパネル
+   ====================== */
+.pose-panel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 120px;
+  padding: 16px 12px;
+  border-radius: 16px;
+  background: rgba(0, 20, 10, 0.75);
+  backdrop-filter: blur(12px);
+  transition: transform 0.05s linear, opacity 0.1s ease, box-shadow 0.1s ease;
+  will-change: transform;
+}
+
+.pose-panel-left {
+  left: 50%;
+}
+
+.pose-panel-right {
+  right: 50%;
+}
+
+/* 点滅エフェクト（hitTime直前） */
+.pose-panel.flashing {
+  animation: pose-flash 0.15s ease-in-out infinite alternate;
+}
+
+@keyframes pose-flash {
+  from {
+    background: rgba(0, 20, 10, 0.75);
+  }
+  to {
+    background: rgba(0, 60, 30, 0.95);
+  }
+}
+
+/* ポーズラベル */
+.pose-label {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  color: #00ff64;
+  text-shadow: 0 0 10px rgba(0, 255, 100, 0.8);
+  text-transform: uppercase;
+}
+
+/* タイミングバー（収束の進捗表示） */
+.timing-bar-container {
+  width: 100%;
+  height: 4px;
+  background: rgba(0, 255, 100, 0.15);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.timing-bar {
+  height: 100%;
+  background: linear-gradient(to right, #00ff64, #00ffcc);
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(0, 255, 100, 0.8);
+  transition: width 0.08s linear;
+}
+
+/* 合致時の中央ラインエフェクト */
+.match-line {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  height: 3px;
+  background: linear-gradient(to right, transparent, #00ff64, #00ffcc, #00ff64, transparent);
+  border-radius: 2px;
+  box-shadow: 0 0 20px rgba(0, 255, 100, 0.9), 0 0 40px rgba(0, 255, 100, 0.5);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* HUD全体のポーズパネルエリア */
+.pose-area {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 25;
+}

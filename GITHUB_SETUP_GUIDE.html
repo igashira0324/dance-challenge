@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Registration Guide - Dance Challenge</title>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+    <style>
+        :root {
+            --primary-color: #00ffcc;
+            --secondary-color: #0066ff;
+            --bg-color: #0a0a12;
+            --card-bg: #161625;
+            --text-color: #e0e0e0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 60px 0;
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: fadeInDown 1s ease-out;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            animation: fadeInUp 0.8s ease-out both;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 255, 204, 0.15);
+            border-color: var(--primary-color);
+        }
+
+        .step-number {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            background-color: var(--primary-color);
+            color: var(--bg-color);
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        code {
+            background-color: #000;
+            color: var(--primary-color);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+        }
+
+        pre {
+            background-color: #000;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        .mermaid {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(90deg, var(--secondary-color), var(--primary-color));
+            color: white;
+            text-decoration: none;
+            border-radius: 30px;
+            font-weight: bold;
+            transition: opacity 0.3s, transform 0.2s;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: scale(1.05);
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .glow {
+            animation: glowing 2s infinite;
+        }
+
+        @keyframes glowing {
+            0% { text-shadow: 0 0 5px var(--primary-color); }
+            50% { text-shadow: 0 0 20px var(--primary-color); }
+            100% { text-shadow: 0 0 5px var(--primary-color); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 class="glow">GitHub Registration Guide</h1>
+            <p>AI Dance Challenge を世界へ公開しましょう</p>
+        </header>
+
+        <section class="card">
+            <h2><span class="step-number">1</span> Gitの基本フロー</h2>
+            <p>ローカルでの変更をGitHubに反映させるまでの流れを図解します。</p>
+            <div class="mermaid">
+                graph LR
+                    A[Working Directory] -->|git add| B[Staging Area]
+                    B -->|git commit| C[Local Repository]
+                    C -->|git push| D[GitHub (Remote)]
+                    style A fill:#f9f,stroke:#333,stroke-width:2px
+                    style B fill:#bbf,stroke:#333,stroke-width:2px
+                    style C fill:#bfb,stroke:#333,stroke-width:2px
+                    style D fill:#fff,stroke:#333,stroke-width:4px
+            </div>
+        </section>
+
+        <section class="card">
+            <h2><span class="step-number">2</span> 自動セットアップ実行</h2>
+            <p>同梱のバッチファイルを実行するだけで、リポジトリの初期化からプッシュまで完了します。</p>
+            <pre>setup_git.bat</pre>
+            <p><strong>注意:</strong> 実行中にGitHubのログイン画面（ブラウザ）が表示された場合は、ログインを完了させてください。</p>
+        </section>
+
+        <section class="card">
+            <h2><span class="step-number">3</span> 手動で行う場合の手順</h2>
+            <p>コマンドプロンプトやPowerShellで以下のコマンドを順に実行します。</p>
+            <ol>
+                <li>リポジトリ初期化: <code>git init</code></li>
+                <li>全ファイル追加: <code>git add .</code></li>
+                <li>コミット作成: <code>git commit -m "Initial commit"</code></li>
+                <li>リモート登録: <code>git remote add origin https://github.com/igashira0324/dance-challenge.git</code></li>
+                <li>プッシュ: <code>git push -u origin main</code></li>
+            </ol>
+        </section>
+
+        <footer style="text-align: center; margin-top: 50px; opacity: 0.7;">
+            <p>&copy; 2026 Antigravity Creative Assistant</p>
+        </footer>
+    </div>
+</body>
+</html>

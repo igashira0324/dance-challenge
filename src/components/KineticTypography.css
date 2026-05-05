@@ -1,0 +1,104 @@
+.bg-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.lyric-container {
+  position: absolute;
+  bottom: 8%;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.lyric-text {
+  position: relative;
+  font-family: 'Inter', 'Noto Sans JP', sans-serif;
+  font-size: 4rem;
+  font-weight: 900;
+  color: white;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.chorus {
+  font-size: 7rem;
+  filter: drop-shadow(0 0 30px rgba(255,255,255,0.3));
+}
+
+.chorus-bg-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 15rem;
+  font-weight: 1000;
+  color: white;
+  white-space: nowrap;
+  opacity: 0.1;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.lyric-content-wrapper {
+  position: relative;
+  z-index: 2;
+  -webkit-text-stroke: 1px rgba(0,0,0,0.5);
+}
+
+/* Styles */
+.lyric-text.normal {
+  text-shadow: 0 10px 30px rgba(0,0,0,0.8);
+}
+
+.lyric-text.modern {
+  font-family: 'Outfit', sans-serif;
+  background: linear-gradient(180deg, #fff 0%, #aaa 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.lyric-text.neon {
+  color: #fff;
+  text-shadow: 0 0 20px #0ff, 0 0 40px #0ff, 0 0 60px #f0f;
+}
+
+.lyric-text.outline {
+  color: transparent;
+  -webkit-text-stroke: 2px #00ffff;
+  text-shadow: none;
+}
+
+.lyric-text.gradient {
+  background: linear-gradient(90deg, #00ffff, #ff00ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 10px rgba(0, 255, 255, 0.5));
+}
+
+.lyric-text.fire {
+  background: linear-gradient(0deg, #ff0000, #ff8c00);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 20px rgba(255, 0, 0, 0.8));
+  animation: fire-pulse 0.2s infinite alternate;
+}
+
+@keyframes fire-pulse {
+  from { transform: scale(1); filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.8)); }
+  to { transform: scale(1.05); filter: drop-shadow(0 0 30px rgba(255, 140, 0, 1)); }
+}
+
+/* Specific Animations for Typewriter and Wave are handled via framer-motion, 
+but we can add extra CSS transitions here if needed. */

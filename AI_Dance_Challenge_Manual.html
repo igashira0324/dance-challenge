@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Dance Challenge - 取扱説明書</title>
+    <style>
+        :root {
+            --primary: #a855f7;
+            --secondary: #ec4899;
+            --bg: #0f172a;
+            --text: #f8fafc;
+        }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        h1 {
+            font-size: 3rem;
+            font-weight: 900;
+            background: linear-gradient(to right, #fff, var(--primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        .vrm-animation {
+            width: 100%;
+            height: 200px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+            margin: 40px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .stick-figure {
+            height: 150px;
+            stroke: white;
+            stroke-width: 5;
+            fill: none;
+            animation: dance 2s infinite ease-in-out;
+        }
+        @keyframes dance {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(5deg); }
+        }
+        .card {
+            background: rgba(255,255,255,0.03);
+            border: 1px border white/10;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+        }
+        pre {
+            background: #000;
+            padding: 20px;
+            border-radius: 10px;
+            overflow-x: auto;
+            color: #10b981;
+        }
+        .mermaid {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+    </style>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+    </script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI DANCE CHALLENGE</h1>
+            <p>次世代ダンス・リズムゲーム 取扱説明書</p>
+        </header>
+
+        <section class="card">
+            <h2>1. 概要</h2>
+            <p>このアプリケーションは、Webカメラを使用してユーザーのポーズを認識し、3Dアバター（VRM）をリアルタイムで動作させるリズムゲームです。</p>
+            <div class="vrm-animation">
+                <svg class="stick-figure" viewBox="0 0 100 100">
+                    <circle cx="50" cy="20" r="10" />
+                    <line x1="50" y1="30" x2="50" y2="70" />
+                    <line x1="50" y1="40" x2="20" y2="20" />
+                    <line x1="50" y1="40" x2="80" y2="20" />
+                    <line x1="50" y1="70" x2="30" y2="95" />
+                    <line x1="50" y1="70" x2="70" y2="95" />
+                </svg>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>2. 起動方法</h2>
+            <p>プロジェクトのルートディレクトリにある <code>start_game.bat</code> をダブルクリックしてください。</p>
+            <pre>
+.\start_game.bat
+            </pre>
+            <p>ブラウザで <code>http://localhost:5173</code> が開きます。</p>
+        </section>
+
+        <section class="card">
+            <h2>3. アーキテクチャ図</h2>
+            <div class="mermaid">
+                graph TD
+                    A[App.tsx] --> B[PoseService]
+                    A --> C[AudioEngine]
+                    A --> D[VRMService]
+                    B --> B1[MediaPipe Pose]
+                    C --> C1[Web Audio API]
+                    D --> D1[Main VRM Model]
+                    D --> D2[Silhouette Clone L]
+                    D --> D3[Silhouette Clone R]
+                    A --> E[HUD]
+                    A --> F[KineticTypography]
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>4. 新機能: Dance Evolutionスタイル 3Dシルエット</h2>
+            <p>ターゲットポーズのタイミングを知らせるため、プレイヤーのVRMモデルのクローンが半透明の緑色シルエットとして両サイドから接近します。シルエットが中央のプレイヤーモデルに合致した瞬間にポーズを合わせることで、高得点（PERFECT / GOOD）を獲得できます。</p>
+        </section>
+
+        <section class="card">
+            <h2>5. 技術スタック</h2>
+            <ul>
+                <li><strong>React + Vite</strong>: 高速な開発環境とUI構築</li>
+                <li><strong>MediaPipe Tasks</strong>: AIによる骨格検出</li>
+                <li><strong>Three.js / @pixiv/three-vrm</strong>: 3Dアバターのレンダリング及びシルエット生成</li>
+                <li><strong>Framer Motion</strong>: 滑らかなUIアニメーション</li>
+                <li><strong>Lucide React</strong>: プレミアムなアイコンセット</li>
+            </ul>
+        </section>
+
+        <section class="footer" style="text-align: center; opacity: 0.5;">
+            <p>&copy; 2026 AI Dance Challenge Team</p>
+        </section>
+    </div>
+</body>
+</html>

@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-black text-white overflow-hidden m-0 p-0 font-sans;
+  }
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  @apply bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl;
+}
+
+/* Premium gradient text */
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-rose-500;
+}
