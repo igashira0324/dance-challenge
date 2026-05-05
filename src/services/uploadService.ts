@@ -1,26 +1,19 @@
 /**
- * Service to handle temporary image uploads for QR code sharing.
- * Uses file.io for anonymous 24-hour storage (reliable fallback).
+ * Service to handle image uploads for QR code sharing.
+ * Uses the local Vite backend (/api/upload) to ensure 100% offline capability.
  */
 class UploadService {
   /**
-   * Uploads a base64 image or Blob to file.io.
-   * Files are automatically deleted after 1 day.
+   * Uploads a base64 image to the local server.
    */
   async uploadImage(dataUrl: string): Promise<string> {
     try {
-      // Convert Data URL to Blob
-      const response = await fetch(dataUrl);
-      const blob = await response.blob();
-      
-      const formData = new FormData();
-      // file.io expects the field name to be 'file'
-      formData.append('file', blob, `miku_photo_${Date.now()}.png`);
-
-      // Using expires=1d for 24-hour retention
-      const uploadResponse = await fetch('https://file.io/?expires=1d', {
+      const uploadResponse = await fetch('/api/upload', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ image: dataUrl })
       });
 
       if (!uploadResponse.ok) {
@@ -30,10 +23,10 @@ class UploadService {
 
       const result = await uploadResponse.json();
       
-      if (result.success && result.link) {
-        return result.link;
+      if (result.url) {
+        return result.url;
       } else {
-        throw new Error(result.message || 'Unexpected response format from file.io');
+        throw new Error(result.error || 'Unexpected response from local server');
       }
     } catch (error) {
       console.error('UploadService Error:', error);
