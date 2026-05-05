@@ -42,6 +42,8 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
     
     (async () => {
       try {
+        setStatus('Loading models...');
+        await poseService.init();
         setStatus('Starting camera...');
         if (!videoRef.current) return;
         await poseService.startCamera(videoRef.current);
@@ -203,7 +205,7 @@ const PhotoBooth = ({ vrm, onExit }: Props) => {
     ctx.shadowOffsetX = 4;
     ctx.shadowOffsetY = 4;
     
-    const text = 'MEMORY WITH MIKU';
+    const text = '初音ミク♫';
     ctx.fillText(text, 60, tempCanvas.height - 70);
     
     // Reset shadow
