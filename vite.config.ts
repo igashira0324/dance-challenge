@@ -38,31 +38,15 @@ function externalUploadPlugin() {
           const tmpPath = path.join(os.tmpdir(), filename)
           fs.writeFileSync(tmpPath, buffer)
 
-          // 1. Try file.io using curl to respect system proxies
-          try {
-            console.log(`[externalUploadPlugin] Try file.io using curl...`);
-            const stdout = execSync(
-              `curl -s -F "file=@${tmpPath}" "https://file.io/?expires=1d"`,
-              { encoding: 'utf-8', timeout: 30000 }
-            )
-            const result = JSON.parse(stdout)
-            
-            if (result.success && result.link) {
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ url: result.link, provider: 'file.io' }))
-              fs.unlinkSync(tmpPath)
-              return
-            }
-            console.warn('file.io failed:', stdout)
-          } catch (e: any) {
-            console.warn('file.io error:', e?.message || e)
-          }
+          // NOTE: We use "env -u http_proxy -u https_proxy" to bypass
+          // the corporate proxy settings baked into ~/.bashrc, which
+          // break all external connections when not on the corp network.
 
-          // 2. Fallback to uguu.se using curl
+          // 1. Primary: uguu.se (confirmed working 2026-05-05)
           try {
-            console.log(`[externalUploadPlugin] Try uguu.se using curl...`);
+            console.log(`[externalUploadPlugin] Trying uguu.se...`);
             const stdout = execSync(
-              `curl -s -F "files[]=@${tmpPath}" "https://uguu.se/upload"`,
+              `env -u http_proxy -u https_proxy curl -s -L -F "files[]=@${tmpPath}" "https://uguu.se/upload"`,
               { encoding: 'utf-8', timeout: 30000 }
             )
             const result = JSON.parse(stdout)
@@ -73,9 +57,32 @@ function externalUploadPlugin() {
               fs.unlinkSync(tmpPath)
               return
             }
-            console.warn('uguu.se failed:', stdout)
+            console.warn('uguu.se unexpected response:', stdout)
           } catch (e: any) {
             console.warn('uguu.se error:', e?.message || e)
+          }
+
+          // 2. Fallback: file.io (currently returning 405, kept for future recovery)
+          try {
+            console.log(`[externalUploadPlugin] Trying file.io...`);
+            const stdout = execSync(
+              `env -u http_proxy -u https_proxy curl -s -L -F "file=@${tmpPath}" "https://file.io/?expires=1d"`,
+              { encoding: 'utf-8', timeout: 30000 }
+            )
+
+            // file.io may return HTML instead of JSON if API has changed
+            if (stdout.trim().startsWith('{')) {
+              const result = JSON.parse(stdout)
+              if (result.success && result.link) {
+                res.setHeader('Content-Type', 'application/json')
+                res.end(JSON.stringify({ url: result.link, provider: 'file.io' }))
+                fs.unlinkSync(tmpPath)
+                return
+              }
+            }
+            console.warn('file.io failed or returned non-JSON:', stdout.substring(0, 200))
+          } catch (e: any) {
+            console.warn('file.io error:', e?.message || e)
           }
 
           if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath)
@@ -83,7 +90,7 @@ function externalUploadPlugin() {
           res.statusCode = 502
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify({
-            error: 'All external upload providers failed (Is the proxy still blocking?)',
+            error: 'All upload providers failed. Check network connectivity.',
           }))
         } catch (e) {
           res.statusCode = 500
