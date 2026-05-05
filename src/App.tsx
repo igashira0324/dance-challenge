@@ -114,10 +114,7 @@ const App = () => {
   };
 
   const handleStart = async () => {
-    if (!vrm) {
-      alert("先にVRMモデルをアップロードしてください (Please upload a VRM model first)");
-      return;
-    }
+    if (!vrm) return;
     try {
       await startCamera();
       await audioEngine.playDemo();

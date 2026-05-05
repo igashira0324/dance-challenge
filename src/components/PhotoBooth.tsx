@@ -309,14 +309,12 @@ const PhotoBooth = ({ vrm, onExit, onVrmChange }: Props) => {
     // Bottom-left: Credits
     let creditText = 'Model: Custom VRM';
 
-    if (creditText) {
-      ctx.textAlign = 'left';
-      ctx.font = `bold ${16 * fontScale}px "Outfit", "Noto Sans JP", sans-serif`;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.shadowColor = 'rgba(0,0,0,0.8)';
-      ctx.shadowBlur = 4 * fontScale;
-      ctx.fillText(creditText, 30 * fontScale, h - 30 * fontScale);
-    }
+    ctx.textAlign = 'left';
+    ctx.font = `bold ${16 * fontScale}px "Outfit", "Noto Sans JP", sans-serif`;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 4 * fontScale;
+    ctx.fillText(creditText, 30 * fontScale, h - 30 * fontScale);
 
     ctx.restore();
   };
