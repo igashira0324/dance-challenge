@@ -1,73 +1,48 @@
-# React + TypeScript + Vite
+# AI Dance Challenge 🕺✨
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+MediaPipe Pose と 3D VRM を活用した、高精度な次世代リズムダンスゲームエンジン。
 
-Currently, two official plugins are available:
+## 🌟 特徴
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **3D Metric Vector 判定**: 従来の 2D 角度判定ではなく、3D 空間上のベクトルを利用した高精度なポーズ合致判定。カメラの距離や角度に依存しません。
+- **VRM シルエットガイド**: 楽曲に合わせて動く VRM モデルをシルエットとして表示。`SkeletonUtils.clone` による高速・低メモリなレンダリング。
+- **グラスモーフィズム HUD**: モダンで視認性の高いユーザーインターフェース。
+- **リアルタイム・フィードバック**: コンボ、判定（PERFECT / GOOD）、エフェクトによる爽快なプレイ体験。
+- **デバッグ & キャリブレーション**: `Alt+C` で現在のポーズをベクトルデータとして瞬時にキャプチャ可能。
 
-## React Compiler
+## 🚀 クイックスタート (Windows)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. **RUN_GAME.bat** をダブルクリックします。
+2. 自動的に依存関係がインストールされ、開発サーバーが起動します。
+3. ブラウザで `http://localhost:5173` を開きます。
 
-## Expanding the ESLint configuration
+## 🛠 技術スタック
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **Core**: React + Vite + TypeScript
+- **Pose Detection**: MediaPipe Pose (Task Vision)
+- **3D Rendering**: Three.js + @pixiv/three-vrm
+- **Animation**: Framer Motion
+- **Audio**: Web Audio API
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 📐 アーキテクチャ解説
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+判定エンジンの詳細については、`architecture_overview.md` を参照してください。
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### ボディ・ローカル座標系
+ユーザーの肩と腰の位置から独自の 3D 基底ベクトルを生成。これにより、ユーザーが部屋のどこにいても、どの向きを向いていても、ポーズを正確に評価できます。
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 類似度計算
+ターゲットポーズ（正規化ベクトル）とユーザーのポーズの内積（Cosine Similarity）を計算。
+- **0.85 以上**: PERFECT
+- **0.65 以上**: GOOD
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 📸 新しいポーズの追加方法
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+1. アプリを起動し、カメラの前でポーズを取ります。
+2. `Alt + C` キーを押します。
+3. ブラウザのコンソールに出力された JSON データをコピーします。
+4. `src/constants/index.ts` の `DEMO_MARKERS` に貼り付けます。
+
+## 📜 ライセンス
+
+MIT License
