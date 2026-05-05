@@ -136,48 +136,36 @@ const MocapTest = ({ vrm, onExit }: Props) => {
   }, [vrm]);
 
   return (
-    <div className="absolute inset-0 overflow-hidden">
-      {/* Full Screen Video Background */}
-      <div className="absolute inset-0 z-0">
-        <video ref={videoRef} className="w-full h-full object-cover scale-x-[-1] opacity-60" muted playsInline />
-        <canvas ref={overlayRef} className="absolute inset-0 w-full h-full scale-x-[-1] pointer-events-none opacity-80" />
-        {/* Subtle Dark Overlay */}
-        <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" />
+    <div className="absolute inset-0 z-50 pointer-events-none">
+      {/* Top Left: Status */}
+      <div className="absolute top-4 left-4 text-white font-mono text-[10px] bg-black/60 px-4 py-2 rounded-lg border border-white/10 pointer-events-auto">
+        <div className="text-cyan-400 font-bold mb-1 border-b border-cyan-400/30 pb-1">🔬 MOCAP DEBUG</div>
+        <div>Status: <span className={status.startsWith('ERROR') ? 'text-rose-400' : 'text-cyan-300'}>{status}</span></div>
+        <div>Pose: <span className={detected ? 'text-emerald-400' : 'text-rose-400'}>{detected ? 'DETECTED' : 'NOT FOUND'}</span></div>
+        <div>FPS: {fps}</div>
       </div>
 
-      {/* UI Elements (Z-Index 50 to stay above everything) */}
-      <div className="absolute inset-0 z-50 pointer-events-none">
-        {/* Top Left: Status */}
-        <div className="absolute top-4 left-4 text-white font-mono text-[10px] bg-black/70 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 pointer-events-auto shadow-2xl">
-          <div className="text-cyan-400 font-bold mb-1 border-b border-cyan-400/30 pb-1 flex items-center gap-2">
-            <div className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse" />
-            🔬 MOCAP DEBUG
-          </div>
-          <div className="space-y-0.5">
-            <div>Status: <span className={status.startsWith('ERROR') ? 'text-rose-400' : 'text-cyan-300'}>{status}</span></div>
-            <div>Pose: <span className={detected ? 'text-emerald-400' : 'text-rose-400'}>{detected ? 'DETECTED' : 'NOT FOUND'}</span></div>
-            <div>FPS: <span className="text-white font-bold">{fps}</span></div>
-          </div>
-        </div>
+      <button
+        onClick={onExit}
+        className="absolute top-4 right-4 px-6 py-2 bg-white/90 hover:bg-white text-black font-black text-xs rounded-full border border-white shadow-xl pointer-events-auto transition-all active:scale-95"
+      >
+        ← EXIT TEST
+      </button>
 
-        <button
-          onClick={onExit}
-          className="absolute top-4 right-4 px-8 py-3 bg-white text-black font-black text-xs rounded-full border border-white shadow-[0_0_30px_rgba(255,255,255,0.3)] pointer-events-auto transition-all hover:scale-105 active:scale-95 flex items-center gap-2 uppercase tracking-widest"
-        >
-          <span className="text-lg">←</span> EXIT TEST MODE
-        </button>
-
-        {/* Bottom Guidance */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6 pointer-events-auto">
-          <div className="glass-panel p-5 bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl text-center">
-            <p className="text-white/90 text-xs leading-relaxed">
-              <span className="text-cyan-300 font-black tracking-widest mr-2 uppercase">Analysis:</span> 
-              全画面の骨格オーバーレイ（緑・水色・ピンク）と、中央のアバターの動きを比較してください。
-              <br/>
-              <span className="text-gray-500 mt-1 block">アバターが重なって見づらい場合は、少し距離を空けて調整してください。</span>
-            </p>
-          </div>
+      {/* Bottom Left: Camera PiP */}
+      <div className="absolute bottom-6 left-6 w-[320px] h-[240px] border-2 border-cyan-500/50 rounded-2xl overflow-hidden shadow-[0_0_30px_rgba(6,182,212,0.3)] pointer-events-auto bg-black">
+        <video ref={videoRef} className="w-full h-full object-cover scale-x-[-1]" muted playsInline />
+        <canvas ref={overlayRef} className="absolute inset-0 w-full h-full scale-x-[-1] pointer-events-none" />
+        <div className="absolute top-2 left-2 bg-black/60 px-2 py-0.5 rounded text-[8px] text-cyan-300 uppercase tracking-widest font-bold">
+          Camera / Overlay
         </div>
+      </div>
+
+      {/* Bottom Center: Guidance (Minimal) */}
+      <div className="absolute bottom-6 left-[350px] right-6 flex items-center">
+        <p className="text-white/80 text-[11px] bg-black/60 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10 shadow-2xl">
+          <span className="text-cyan-300 font-bold">SIDE-BY-SIDE:</span> 左下の骨格オーバーレイと、中央のアバターの動きを比較してください。
+        </p>
       </div>
     </div>
   );
